@@ -1,14 +1,14 @@
 {
-  "name": "Hans Batik — Manajemen Penjualan",
+  "name": "Hans Batik & Resto — Manajemen Penjualan",
   "short_name": "Hans Batik",
-  "description": "Nota PDF berkop, data penjualan, rekap harian, pengeluaran, dan laporan keuangan Hans Batik.",
+  "description": "Nota PDF berkop, data penjualan, rekap harian, pengeluaran, dan laporan keuangan Hans Batik & Resto.",
   "lang": "id",
   "start_url": "./#/",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#4A240E",
-  "theme_color": "#4A240E",
+  "background_color": "#C30000",
+  "theme_color": "#C30000",
   "categories": ["business", "finance", "productivity"],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

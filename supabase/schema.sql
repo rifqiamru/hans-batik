@@ -1,5 +1,5 @@
 -- =====================================================================
--- HANS BATIK MANAGEMENT SYSTEM — Skema Database Supabase (PostgreSQL)
+-- HANS BATIK & RESTO MANAGEMENT SYSTEM — Skema Database Supabase (PostgreSQL)
 -- ---------------------------------------------------------------------
 -- Jalankan seluruh file ini SEKALI di Supabase Dashboard → SQL Editor.
 -- File ini idempotent untuk objek fungsi/view/policy, dan aman dijalankan
@@ -803,13 +803,16 @@ where not exists (select 1 from public.expense_categories s where lower(s.name) 
 -- Identitas & kop nota bisa diubah di menu Pengaturan aplikasi.
 insert into public.app_settings (setting_key, setting_value) values
   ('business', jsonb_build_object(
-      'name', 'HANS BATIK',
-      'tagline', 'Batik Tulis & Batik Cap',
-      'whatsapp', '',
+      'name', 'HANS BATIK & RESTO',
+      'tagline', 'Pusat Batik Banyumasan & Oleh-oleh Khas Purwokerto',
+      'whatsapp', '085712714445',
       'owner_name', '',
-      'nota_footer', 'Terima kasih telah berbelanja di Hans Batik 🙏')),
+      'nota_footer', 'Terima kasih telah berbelanja di Hans Batik & Resto 🙏')),
   ('letterhead', jsonb_build_object(
-      'address', '', 'phone', '', 'email', '', 'website', '',
+      'address', 'Jl. Menteri Supeno No. 81, Ds. Wiradadi, Kec. Sokaraja, Kab. Banyumas, Jawa Tengah 53181',
+      'phone', '085712714445 / 08156508711',
+      'email', 'hansbatikbanyumas@gmail.com',
+      'website', 'IG @hansbatik.id  |  TikTok @hansbatik  |  FB Hans Batik Banyumas',
       'logo', '', 'paper', 'A5', 'signer', '',
       'note', 'Barang yang sudah dibeli tidak dapat ditukar/dikembalikan kecuali ada perjanjian.')),
   ('payment', jsonb_build_object(
@@ -821,3 +824,24 @@ insert into public.app_settings (setting_key, setting_value) values
   ('display', jsonb_build_object('show_pending_revenue', true)),
   ('balance', jsonb_build_object('opening_amount', 0, 'start_date', null))
 on conflict (setting_key) do nothing;
+
+-- Database yang dibuat dengan versi sebelumnya: isi identitas brand bila
+-- datanya masih bawaan lama (belum pernah diubah di Pengaturan).
+update public.app_settings
+set setting_value = setting_value || jsonb_build_object(
+      'name', 'HANS BATIK & RESTO',
+      'tagline', 'Pusat Batik Banyumasan & Oleh-oleh Khas Purwokerto',
+      'whatsapp', '085712714445',
+      'nota_footer', 'Terima kasih telah berbelanja di Hans Batik & Resto 🙏')
+where setting_key = 'business'
+  and setting_value ->> 'name' = 'HANS BATIK'
+  and coalesce(setting_value ->> 'whatsapp', '') = '';
+update public.app_settings
+set setting_value = setting_value || jsonb_build_object(
+      'address', 'Jl. Menteri Supeno No. 81, Ds. Wiradadi, Kec. Sokaraja, Kab. Banyumas, Jawa Tengah 53181',
+      'phone', '085712714445 / 08156508711',
+      'email', 'hansbatikbanyumas@gmail.com',
+      'website', 'IG @hansbatik.id  |  TikTok @hansbatik  |  FB Hans Batik Banyumas')
+where setting_key = 'letterhead'
+  and coalesce(setting_value ->> 'address', '') = ''
+  and coalesce(setting_value ->> 'email', '') = '';

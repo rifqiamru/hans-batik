@@ -108,7 +108,7 @@ const SET_PAY = mergeSettings({ payment: { account_holder: 'Hans', bank: { enabl
 test('format nota WhatsApp Hans Batik', () => {
   const expected = [
     '━━━━━━━━━━━━━━━━━━━━━━',
-    '🧾 *NOTA HANS BATIK*',
+    '🧾 *NOTA HANS BATIK & RESTO*',
     '━━━━━━━━━━━━━━━━━━━━━━',
     '📋 No. Nota  : HB-2611001',
     '📅 Tanggal   : 19 November 2026',
@@ -130,7 +130,7 @@ test('format nota WhatsApp Hans Batik', () => {
     '🏦 Bank BCA: 1234567890',
     '👤 a.n Hans',
     '',
-    'Terima kasih telah berbelanja di Hans Batik 🙏',
+    'Terima kasih telah berbelanja di Hans Batik & Resto 🙏',
   ].join('\n');
   assert.equal(buildNotaText(ORDER_A, SET_PAY), expected);
   assert.doesNotMatch(buildNotaText(ORDER_A, DEFAULT_SETTINGS), /INFO PEMBAYARAN/, 'bawaan: belum ada rekening');

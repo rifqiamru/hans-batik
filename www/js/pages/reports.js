@@ -10,9 +10,10 @@ const PERIODS = [
   ['today', 'Hari ini'], ['yesterday', 'Kemarin'], ['week', 'Minggu ini'],
   ['month', 'Bulan ini'], ['last_month', 'Bulan lalu'], ['custom', 'Pilih tanggal'],
 ];
-const C_REVENUE = '#8B4513';
-const C_EXPENSE = '#D4A017';
-const C_LOSS = '#DC2626';
+const C_REVENUE = '#C30000';
+const C_EXPENSE = '#E0A800';
+const C_LOSS = '#7A0000';
+const C_PROFIT = '#1F8A4C';
 
 export async function render(root, _params, ctx) {
   const today = todayJakarta();
@@ -52,7 +53,7 @@ export async function render(root, _params, ctx) {
         }));
         disposers.push(barChart($('#chart-profit', root), {
           data: series, xKey: 'day', title: 'Keuntungan bersih per hari',
-          series: [{ key: 'net_profit', label: 'Keuntungan bersih', color: C_REVENUE, negColor: C_LOSS }],
+          series: [{ key: 'net_profit', label: 'Keuntungan bersih', color: C_PROFIT, negColor: C_LOSS }],
         }));
       }
       bindExports(s, series);
@@ -165,7 +166,7 @@ export async function render(root, _params, ctx) {
           ]);
         } else {
           downloadCSV(`laporan_keuangan_${tag}.csv`, [
-            [`Laporan Keuangan ${ctx.settings?.business?.name || 'Hans Batik'}`, `${range.start} s/d ${range.end}`],
+            [`Laporan Keuangan ${ctx.settings?.business?.name || 'Hans Batik & Resto'}`, `${range.start} s/d ${range.end}`],
             [],
             ['Keterangan', 'Nilai'],
             ['Jumlah transaksi', s.order_count],

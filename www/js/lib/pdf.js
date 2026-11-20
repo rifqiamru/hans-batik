@@ -1,21 +1,22 @@
-// Nota PDF dengan kop usaha (Hans Batik).
+// Nota PDF dengan kop usaha (Hans Batik & Resto).
 // buildNotaPDF() adalah fungsi murni: menerima konstruktor jsPDF sehingga bisa
 // diuji di Node. Bagian bawah file berisi helper khusus browser (memuat jsPDF,
 // unduh, bagikan) yang baru menyentuh DOM saat dipanggil.
 import { formatDateLong, formatQuantity, formatNumber, terbilang } from './format.js';
 import { DEFAULT_SETTINGS, paymentLines } from './templates.js';
 
-// Warna kop (sogan / cokelat batik + emas).
+// Warna brand Hans Batik & Resto.
 const C = {
-  brown: [92, 46, 18],
-  brownSoft: [139, 69, 19],
-  gold: [184, 134, 11],
-  cream: [250, 244, 234],
-  ink: [33, 25, 20],
+  brown: [195, 0, 0],       // merah brand #C30000 (kop, judul, tabel, total)
+  brownSoft: [140, 0, 0],   // merah tua (tagline)
+  gold: [255, 204, 0],      // kuning brand #FFCC00 (garis aksen)
+  amber: [176, 122, 0],     // kuning tua untuk teks (terbaca di kertas putih)
+  cream: [255, 249, 232],   // cream brand #FFF9E8
+  ink: [42, 26, 18],
   muted: [110, 98, 88],
-  line: [222, 208, 190],
+  line: [240, 226, 196],
   green: [22, 128, 61],
-  red: [185, 28, 28],
+  red: [195, 0, 0],
 };
 
 const PAPER = {
@@ -71,7 +72,7 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
   const lh = (size) => fs(size) * 0.42; // tinggi baris (mm) untuk ukuran font pt
   const wrap = (text, width) => doc.splitTextToSize(pdfSafe(text), width);
 
-  const title = pdfSafe(biz.name || 'HANS BATIK').toUpperCase();
+  const title = pdfSafe(biz.name || 'HANS BATIK & RESTO').toUpperCase();
   doc.setProperties({
     title: `Nota ${order.invoice_number || ''} - ${title}`.trim(),
     subject: 'Nota penjualan',
@@ -101,7 +102,7 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
     doc.text(title, textX, ty, { charSpace: 0.6 });
     ty += lh(9) + 1;
     if (biz.tagline) {
-      font('italic', 9); color(C.gold);
+      font('italic', 9); color(C.brownSoft);
       doc.text(pdfSafe(biz.tagline), textX, ty);
       ty += lh(8.5) + 0.6;
     }
@@ -111,21 +112,21 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
       doc.text(lines, textX, ty);
       ty += lines.length * lh(8) + 0.4;
     }
-    const contact = [
-      (kop.phone || biz.whatsapp) && `Telp/WA: ${kop.phone || biz.whatsapp}`,
-      kop.email && `Email: ${kop.email}`,
-      kop.website && kop.website,
-    ].filter(Boolean).join('  |  ');
-    if (contact) {
-      const lines = wrap(contact, textW);
-      color(C.muted);
+    const contactLines = [
+      [(kop.phone || biz.whatsapp) && `Telp/WA: ${kop.phone || biz.whatsapp}`, kop.email && `Email: ${kop.email}`]
+        .filter(Boolean).join('  |  '),
+      kop.website || '',
+    ].filter(Boolean);
+    color(C.muted);
+    for (const c of contactLines) {
+      const lines = wrap(c, textW);
       doc.text(lines, textX, ty);
       ty += lines.length * lh(8);
     }
     y = Math.max(y + logoSize, ty) + 2.5;
     // Garis ganda khas kop surat.
     color(C.brown, 'draw'); doc.setLineWidth(0.9); doc.line(M, y, W - M, y);
-    color(C.gold, 'draw'); doc.setLineWidth(0.3); doc.line(M, y + 1.3, W - M, y + 1.3);
+    color(C.gold, 'draw'); doc.setLineWidth(0.7); doc.line(M, y + 1.6, W - M, y + 1.6);
     y += 7;
   }
   drawKop();
@@ -274,7 +275,7 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
   let ly = yTot0 + 1;
   const stamp = order.order_status === 'Dibatalkan' ? ['DIBATALKAN', C.red]
     : order.payment_status === 'Lunas' ? ['LUNAS', C.green]
-      : order.payment_status === 'DP' ? ['DP / BELUM LUNAS', C.gold] : ['BELUM LUNAS', C.red];
+      : order.payment_status === 'DP' ? ['DP / BELUM LUNAS', C.amber] : ['BELUM LUNAS', C.red];
   font('bold', 11);
   const sw = doc.getTextWidth(stamp[0]) + stamp[0].length * 0.5 + 8;
   color(stamp[1], 'draw'); color(stamp[1]); doc.setLineWidth(0.7);
@@ -351,7 +352,7 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
   const pages = doc.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p);
-    color(C.gold, 'draw'); doc.setLineWidth(0.3);
+    color(C.gold, 'draw'); doc.setLineWidth(0.6);
     doc.line(M, H - M - 3.5, W - M, H - M - 3.5);
     font('italic', 7.5); color(C.muted);
     if (footer) doc.text(footer, M, H - M, { maxWidth: W - 2 * M - 22 });

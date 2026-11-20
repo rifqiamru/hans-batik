@@ -1,6 +1,8 @@
-# HANS BATIK — Management System
+# HANS BATIK & RESTO — Management System
 
-> Aplikasi manajemen penjualan & keuangan toko batik + **nota PDF berkop Hans Batik**
+> *Pusat Batik Banyumasan & Oleh-oleh Khas Purwokerto*
+>
+> Aplikasi manajemen penjualan & keuangan + **nota PDF berkop Hans Batik & Resto**
 
 Dibangun dari aplikasi Kang Rewang, disesuaikan untuk **toko batik**: buat nota penjualan,
 **unduh / bagikan nota PDF dengan kop usaha** (logo, alamat, kontak), kirim teks nota ke WhatsApp,
@@ -42,6 +44,14 @@ website/Instagram, ukuran kertas **A5** (bawaan) atau **A4**, nama penanda tanga
 (mis. ketentuan retur). Tombol **Contoh PDF** menampilkan hasilnya sebelum disimpan.
 Nama usaha, tagline, dan no. WA diambil dari **Identitas usaha**. Jika logo belum diunggah,
 dipakai logo bawaan `www/icons/logo-kop.png`.
+
+**Identitas bawaan** (bisa diubah di Pengaturan): Hans Batik & Resto · Jl. Menteri Supeno No. 81, Ds. Wiradadi,
+Kec. Sokaraja, Kab. Banyumas, Jawa Tengah 53181 · WA 085712714445 / 08156508711 · hansbatikbanyumas@gmail.com ·
+IG @hansbatik.id · TikTok @hansbatik · FB Hans Batik Banyumas.
+
+**Warna brand:** Merah `#C30000` (identitas, judul, tombol utama), Kuning `#FFCC00` (aksen, CTA),
+Putih `#FFFFFF`, Cream `#FFF9E8` (latar). Ikon aplikasi & logo kop dibuat dari `assets/logo-hans.png`
+dengan `node scripts/make-icons.cjs`.
 
 ---
 

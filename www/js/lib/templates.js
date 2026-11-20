@@ -5,18 +5,18 @@ export const LINE = '━━━━━━━━━━━━━━━━━━━�
 
 export const DEFAULT_SETTINGS = {
   business: {
-    name: 'HANS BATIK',
-    tagline: 'Batik Tulis & Batik Cap',
-    whatsapp: '',
+    name: 'HANS BATIK & RESTO',
+    tagline: 'Pusat Batik Banyumasan & Oleh-oleh Khas Purwokerto',
+    whatsapp: '085712714445',
     owner_name: '',
-    nota_footer: 'Terima kasih telah berbelanja di Hans Batik 🙏',
+    nota_footer: 'Terima kasih telah berbelanja di Hans Batik & Resto 🙏',
   },
   // Kop nota PDF
   letterhead: {
-    address: '',
-    phone: '',
-    email: '',
-    website: '',
+    address: 'Jl. Menteri Supeno No. 81, Ds. Wiradadi, Kec. Sokaraja, Kab. Banyumas, Jawa Tengah 53181',
+    phone: '085712714445 / 08156508711',
+    email: 'hansbatikbanyumas@gmail.com',
+    website: 'IG @hansbatik.id  |  TikTok @hansbatik  |  FB Hans Batik Banyumas',
     logo: '',          // data URL PNG/JPEG (diunggah di Pengaturan); kosong = logo bawaan
     paper: 'A5',       // 'A4' | 'A5'
     signer: '',        // nama di kolom tanda tangan
@@ -63,7 +63,7 @@ export function buildNotaText(order, settings = DEFAULT_SETTINGS) {
   const L = [];
 
   L.push(LINE);
-  L.push(`🧾 *NOTA ${String(biz.name || 'HANS BATIK').toUpperCase()}*`);
+  L.push(`🧾 *NOTA ${String(biz.name || 'HANS BATIK & RESTO').toUpperCase()}*`);
   L.push(LINE);
   L.push(`📋 No. Nota  : ${order.invoice_number || '-'}`);
   L.push(`📅 Tanggal   : ${formatDateLong(order.transaction_date)}`);

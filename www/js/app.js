@@ -178,7 +178,7 @@ function renderShell() {
 function applyBranding() {
   const biz = ctx.settings?.business;
   if (!biz) return;
-  $$('[data-brand-name]').forEach((el) => { el.textContent = biz.name || 'HANS BATIK'; });
+  $$('[data-brand-name]').forEach((el) => { el.textContent = biz.name || 'HANS BATIK & RESTO'; });
   $$('[data-brand-tagline]').forEach((el) => { el.textContent = biz.tagline || ''; });
 }
 
@@ -217,7 +217,7 @@ async function route() {
   $$('[data-nav]').forEach((el) => el.classList.toggle('active',
     el.dataset.nav === r.nav || (el.dataset.nav === 'more' && inMore)));
   $('#page-title').textContent = r.title;
-  document.title = `${r.title} · ${ctx.settings?.business?.name || 'Hans Batik'}`;
+  document.title = `${r.title} · Hans Batik`;
 
   const main = $('#main');
   const root = document.createElement('div');
@@ -241,8 +241,8 @@ function renderLogin() {
   el.innerHTML = `
     <div class="login-card">
       <img src="icons/icon-192.png" alt="" class="login-logo" width="88" height="88">
-      <h1 data-brand-name>HANS BATIK</h1>
-      <p class="tagline" data-brand-tagline>Batik Tulis &amp; Batik Cap</p>
+      <h1 data-brand-name>HANS BATIK &amp; RESTO</h1>
+      <p class="tagline" data-brand-tagline>Pusat Batik Banyumasan &amp; Oleh-oleh Khas Purwokerto</p>
       <form id="login-form" novalidate>
         <label class="field"><span class="field-label">Email</span>
           <input type="email" name="email" autocomplete="username" required inputmode="email" placeholder="email@contoh.com"></label>

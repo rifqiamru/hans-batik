@@ -53,7 +53,7 @@ export async function render(root, _params, ctx) {
         <label class="field"><span class="field-label">Telepon <small>(kosong = no. WA usaha)</small></span><input name="phone" type="tel" inputmode="tel" maxlength="40" value="${esc(kop.phone)}"></label>
         <label class="field"><span class="field-label">Email</span><input name="email" type="email" inputmode="email" maxlength="80" value="${esc(kop.email)}"></label>
       </div>
-      <label class="field"><span class="field-label">Website / Instagram / marketplace</span><input name="website" maxlength="80" value="${esc(kop.website)}" placeholder="mis. instagram.com/hansbatik"></label>
+      <label class="field"><span class="field-label">Media sosial / website</span><input name="website" maxlength="120" value="${esc(kop.website)}" placeholder="mis. IG @hansbatik.id"></label>
       <div class="grid-2">
         <div class="field"><span class="field-label">Ukuran kertas</span>
           <div class="seg">${['A5', 'A4'].map((p) => `<label><input type="radio" name="paper" value="${p}" ${(kop.paper || 'A5') === p ? 'checked' : ''}><span>${p}</span></label>`).join('')}</div></div>
@@ -145,7 +145,7 @@ export async function render(root, _params, ctx) {
       </form>
       <button class="btn btn-ghost btn-danger-text btn-block" id="btn-logout">${icon('logout')} Keluar dari aplikasi</button>
     </section>
-    <p class="muted small center">Hans Batik Management System · v1.0</p>`;
+    <p class="muted small center">Hans Batik &amp; Resto Management System · v1.1</p>`;
 
   // ---- Identitas usaha
   $('#set-usaha', root).addEventListener('submit', async (e) => {
