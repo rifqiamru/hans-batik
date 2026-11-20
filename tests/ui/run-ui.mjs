@@ -91,6 +91,7 @@ try {
   assert.ok(notaA.includes('   💰 *TOTAL: Rp 845.000*'));
   assert.ok(notaA.includes('👤 Pelanggan : Budi'));
   assert.ok(notaA.includes('🔢 Resi   : JNE123'));
+  assert.ok(notaA.endsWith('🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏\nUntuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n Amelia Hanum di:\n\nBRI 007701001069565'), 'penutup nota');
   assert.equal(await page.evaluate(() => window.__db.orders.length), 1, 'klik ganda tidak membuat transaksi ganda');
   ok('simpan nota A + klik ganda tetap 1 transaksi + format nota WA');
   await shot('04-nota-tersimpan');
@@ -268,7 +269,7 @@ try {
 
   // ---------- Pengaturan: rekening bank → tampil di nota; kop nota PDF
   await go('#/pengaturan');
-  await page.click('#set-bayar .switch:has-text("rekening bank")');
+  assert.ok(await page.isChecked('#set-bayar [name=bank_enabled]'), 'rekening BRI aktif bawaan');
   await page.fill('#set-bayar [name=bank_name]', 'BCA');
   await page.fill('#set-bayar [name=bank_account]', '1234567890');
   await page.fill('#set-bayar [name=account_holder]', 'Hans');
@@ -276,7 +277,7 @@ try {
   await page.waitForSelector('.toast-success');
   await page.click('#btn-preview');
   const prev = await text('.sheet .wa-preview');
-  assert.ok(prev.includes('Bank BCA: 1234567890'), 'rekening tampil');
+  assert.ok(prev.includes('rekening a.n Hans di:\n\nBCA 1234567890'), 'rekening tampil di penutup nota');
   assert.ok(!prev.includes('Dana'), 'Dana nonaktif tidak tampil');
   await page.click('.sheet [data-close]');
   ok('pengaturan pembayaran: rekening aktif tampil di nota, metode nonaktif tidak');

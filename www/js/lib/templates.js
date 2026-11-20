@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS = {
     tagline: 'Pusat Batik Banyumasan & Oleh-oleh Khas Purwokerto',
     whatsapp: '085712714445',
     owner_name: '',
-    nota_footer: 'Terima kasih telah berbelanja di Hans Batik & Resto 🙏',
+    nota_footer: '🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏',
   },
   // Kop nota PDF
   letterhead: {
@@ -23,8 +23,10 @@ export const DEFAULT_SETTINGS = {
     note: 'Barang yang sudah dibeli tidak dapat ditukar/dikembalikan kecuali ada perjanjian.',
   },
   payment: {
-    account_holder: '',
-    bank: { enabled: false, name: '', account_number: '' },
+    account_holder: 'Amelia Hanum',
+    // Kalimat pengantar rekening di bagian bawah nota. {nama} = pemilik rekening.
+    note: 'Untuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n {nama} di:',
+    bank: { enabled: true, name: 'BRI', account_number: '007701001069565' },
     dana: { enabled: false, number: '' },
     qris: { enabled: false, info: '' },
   },
@@ -107,17 +109,32 @@ export function buildNotaText(order, settings = DEFAULT_SETTINGS) {
   if (ship.length) { L.push(''); L.push('📦 *PENGIRIMAN:*'); L.push(...ship); }
 
   const payLines = paymentLines(settings);
-  if (payLines.length) {
-    L.push('');
-    L.push('💳 *INFO PEMBAYARAN:*');
-    L.push(...payLines.map((p) => `${p.emoji} ${p.label.padEnd(8)}: ${p.value}`));
-    const holder = settings.payment?.account_holder;
-    if (holder) L.push(`👤 a.n ${holder}`);
-  }
-
+  const payNote = paymentNote(settings);
+  const footer = biz.nota_footer || 'Terima kasih telah berbelanja 🙏';
   L.push('');
-  L.push(biz.nota_footer || 'Terima kasih telah berbelanja 🙏');
+  if (payLines.length && payNote) {
+    // Penutup: ucapan terima kasih → kalimat pengantar → rekening.
+    L.push(footer);
+    L.push(payNote);
+    L.push('');
+    L.push(...payLines.map((p) => `${p.short} ${p.value}`));
+  } else {
+    if (payLines.length) {
+      L.push('💳 *INFO PEMBAYARAN:*');
+      L.push(...payLines.map((p) => `${p.emoji} ${p.label.padEnd(8)}: ${p.value}`));
+      const holder = settings.payment?.account_holder;
+      if (holder) L.push(`👤 a.n ${holder}`);
+      L.push('');
+    }
+    L.push(footer);
+  }
   return L.join('\n');
+}
+
+/** Kalimat pengantar rekening; {nama} diganti nama pemilik rekening. */
+export function paymentNote(settings = DEFAULT_SETTINGS) {
+  const pay = settings.payment || {};
+  return String(pay.note || '').replace(/\{nama\}/gi, pay.account_holder || '').replace(/\s+/g, ' ').trim();
 }
 
 /** Metode pembayaran yang aktif di Pengaturan (dipakai nota WA & PDF). */
@@ -125,10 +142,10 @@ export function paymentLines(settings = DEFAULT_SETTINGS) {
   const pay = settings.payment || {};
   const out = [];
   if (pay.bank?.enabled && pay.bank.account_number) {
-    out.push({ emoji: '🏦', label: `Bank ${pay.bank.name || ''}`.trim(), value: pay.bank.account_number });
+    out.push({ emoji: '🏦', label: `Bank ${pay.bank.name || ''}`.trim(), short: pay.bank.name || 'Bank', value: pay.bank.account_number });
   }
-  if (pay.dana?.enabled && pay.dana.number) out.push({ emoji: '💙', label: 'Dana', value: pay.dana.number });
-  if (pay.qris?.enabled && pay.qris.info) out.push({ emoji: '🔳', label: 'QRIS', value: pay.qris.info });
+  if (pay.dana?.enabled && pay.dana.number) out.push({ emoji: '💙', label: 'Dana', short: 'DANA', value: pay.dana.number });
+  if (pay.qris?.enabled && pay.qris.info) out.push({ emoji: '🔳', label: 'QRIS', short: 'QRIS', value: pay.qris.info });
   return out;
 }
 

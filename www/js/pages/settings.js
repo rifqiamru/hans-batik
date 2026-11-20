@@ -29,7 +29,7 @@ export async function render(root, _params, ctx) {
       <label class="field"><span class="field-label">Tagline</span><input name="tagline" maxlength="80" value="${esc(biz.tagline)}"></label>
       <label class="field"><span class="field-label">Nomor WhatsApp usaha</span><input name="whatsapp" type="tel" inputmode="tel" value="${esc(biz.whatsapp)}"></label>
       <label class="field"><span class="field-label">Nama pemilik</span><input name="owner_name" maxlength="80" value="${esc(biz.owner_name)}"></label>
-      <label class="field"><span class="field-label">Kalimat penutup nota</span><input name="nota_footer" maxlength="120" value="${esc(biz.nota_footer)}"></label>
+      <label class="field"><span class="field-label">Kalimat penutup nota <small>(ucapan terima kasih)</small></span><input name="nota_footer" maxlength="120" value="${esc(biz.nota_footer)}"></label>
       <button class="btn btn-primary" type="submit">Simpan identitas</button>
     </form>
 
@@ -85,6 +85,8 @@ export async function render(root, _params, ctx) {
         <label class="field"><span class="field-label">Informasi QRIS</span><input name="qris_info" maxlength="60" value="${esc(pay.qris?.info)}"></label>
       </fieldset>
       <label class="field"><span class="field-label">Atas nama (pemilik rekening)</span><input name="account_holder" maxlength="60" value="${esc(pay.account_holder)}"></label>
+      <label class="field"><span class="field-label">Kalimat pengantar rekening <small>(di bawah nota; <code>{nama}</code> = pemilik rekening)</small></span>
+        <textarea name="pay_note" rows="2" maxlength="200">${esc(pay.note)}</textarea></label>
       <div class="btn-row">
         <button class="btn btn-ghost" type="button" id="btn-preview">${icon('eye')} Contoh nota</button>
         <button class="btn btn-primary" type="submit">Simpan pembayaran</button>
@@ -163,6 +165,7 @@ export async function render(root, _params, ctx) {
   // ---- Pembayaran
   const readPay = (f) => ({
     account_holder: f.account_holder.value.trim(),
+    note: f.pay_note.value.trim(),
     bank: { enabled: f.bank_enabled.checked, name: f.bank_name.value.trim(), account_number: f.bank_account.value.replace(/\s/g, '') },
     dana: { enabled: f.dana_enabled.checked, number: cleanPhone(f.dana_number.value) },
     qris: { enabled: f.qris_enabled.checked, info: f.qris_info.value.trim() },

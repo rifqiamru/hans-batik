@@ -3,7 +3,7 @@
 // diuji di Node. Bagian bawah file berisi helper khusus browser (memuat jsPDF,
 // unduh, bagikan) yang baru menyentuh DOM saat dipanggil.
 import { formatDateLong, formatQuantity, formatNumber, terbilang } from './format.js';
-import { DEFAULT_SETTINGS, paymentLines } from './templates.js';
+import { DEFAULT_SETTINGS, paymentLines, paymentNote } from './templates.js';
 
 // Warna brand Hans Batik & Resto.
 const C = {
@@ -299,8 +299,10 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
       order.tracking_number && `No. resi: ${order.tracking_number}`,
     ].filter(Boolean)]);
   }
-  const pays = paymentLines(settings).map((p) => `${p.label}: ${p.value}`);
-  if (pays.length) {
+  const payNote = paymentNote(settings);
+  const payList = paymentLines(settings);
+  if (payList.length && !payNote) {
+    const pays = payList.map((p) => `${p.label}: ${p.value}`);
     if (settings.payment?.account_holder) pays.push(`a.n ${settings.payment.account_holder}`);
     infoBlocks.push(['Pembayaran', pays]);
   }
@@ -319,6 +321,36 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
       doc.text(blockLines[i], bx + 3, y + 8.8);
     });
     y += bh + 3;
+  }
+
+  // ------------------------------------------------------------------ Penutup: terima kasih + rekening
+  const footer = pdfSafe(biz.nota_footer);
+  if (footer || (payNote && payList.length)) {
+    const bw = W - 2 * M;
+    font('bold', 9.5);
+    const fLines = footer ? wrap(footer, bw - 8) : [];
+    font('normal', 8.5);
+    const nLines = payNote && payList.length ? wrap(payNote, bw - 8) : [];
+    const aLines = payNote ? payList.map((p) => pdfSafe(`${p.short} ${p.value}`)) : [];
+    const bh = 4 + fLines.length * lh(9.5) + (nLines.length ? 1 + nLines.length * lh(8.5) : 0)
+      + (aLines.length ? 2 + aLines.length * lh(11) : 0) + 2.5;
+    ensure(bh + 2);
+    color(C.cream, 'fill'); color(C.gold, 'draw'); doc.setLineWidth(0.5);
+    doc.roundedRect(M, y, bw, bh, 1.8, 1.8, 'FD');
+    let yy = y + 4 + lh(9.5) * 0.75;
+    font('bold', 9.5); color(C.brown);
+    fLines.forEach((l) => { doc.text(l, W / 2, yy, { align: 'center' }); yy += lh(9.5); });
+    if (nLines.length) {
+      yy += 1;
+      font('normal', 8.5); color(C.ink);
+      nLines.forEach((l) => { doc.text(l, W / 2, yy, { align: 'center' }); yy += lh(8.5); });
+    }
+    if (aLines.length) {
+      yy += 2 + lh(11) * 0.2;
+      font('bold', 11); color(C.ink);
+      aLines.forEach((l) => { doc.text(l, W / 2, yy, { align: 'center', charSpace: 0.3 }); yy += lh(11); });
+    }
+    y += bh + 4;
   }
 
   // ------------------------------------------------------------------ Catatan & tanda tangan
@@ -348,14 +380,14 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
   y += signH + 3;
 
   // ------------------------------------------------------------------ Kaki halaman (semua halaman)
-  const footer = pdfSafe(biz.nota_footer);
+  const pageFoot = pdfSafe([biz.name, kop.website].filter(Boolean).join('  |  '));
   const pages = doc.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {
     doc.setPage(p);
     color(C.gold, 'draw'); doc.setLineWidth(0.6);
     doc.line(M, H - M - 3.5, W - M, H - M - 3.5);
     font('italic', 7.5); color(C.muted);
-    if (footer) doc.text(footer, M, H - M, { maxWidth: W - 2 * M - 22 });
+    if (pageFoot) doc.text(pageFoot, M, H - M, { maxWidth: W - 2 * M - 22 });
     if (pages > 1) doc.text(`Hal. ${p}/${pages}`, W - M, H - M, { align: 'right' });
   }
   return doc;

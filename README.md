@@ -49,6 +49,10 @@ dipakai logo bawaan `www/icons/logo-kop.png`.
 Kec. Sokaraja, Kab. Banyumas, Jawa Tengah 53181 · WA 085712714445 / 08156508711 · hansbatikbanyumas@gmail.com ·
 IG @hansbatik.id · TikTok @hansbatik · FB Hans Batik Banyumas.
 
+**Penutup nota** (teks WhatsApp & PDF): *🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏* lalu
+*Untuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n Amelia Hanum di:* dan **BRI 007701001069565**.
+Ubah di Pengaturan → Identitas usaha (kalimat penutup) dan Pengaturan → Pembayaran (rekening & kalimat pengantar; `{nama}` = pemilik rekening).
+
 **Warna brand:** Merah `#C30000` (identitas, judul, tombol utama), Kuning `#FFCC00` (aksen, CTA),
 Putih `#FFFFFF`, Cream `#FFF9E8` (latar). Ikon aplikasi & logo kop dibuat dari `assets/logo-hans.png`
 dengan `node scripts/make-icons.cjs`.

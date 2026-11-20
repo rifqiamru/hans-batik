@@ -126,14 +126,20 @@ test('format nota WhatsApp Hans Batik', () => {
     '   ✅ Status: *LUNAS*',
     '   ━━━━━━━━━━━━━━━━━━━━━━',
     '',
-    '💳 *INFO PEMBAYARAN:*',
-    '🏦 Bank BCA: 1234567890',
-    '👤 a.n Hans',
+    '🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏',
+    'Untuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n Amelia Hanum di:',
     '',
-    'Terima kasih telah berbelanja di Hans Batik & Resto 🙏',
+    'BRI 007701001069565',
   ].join('\n');
-  assert.equal(buildNotaText(ORDER_A, SET_PAY), expected);
-  assert.doesNotMatch(buildNotaText(ORDER_A, DEFAULT_SETTINGS), /INFO PEMBAYARAN/, 'bawaan: belum ada rekening');
+  assert.equal(buildNotaText(ORDER_A, DEFAULT_SETTINGS), expected);
+  // Rekening lain: {nama} ikut berganti
+  assert.match(buildNotaText(ORDER_A, SET_PAY), /rekening a\.n Hans di:\n\nBCA 1234567890$/);
+  // Tanpa kalimat pengantar → format daftar pembayaran
+  const plain = buildNotaText(ORDER_A, mergeSettings({ payment: { note: '' } }));
+  assert.match(plain, /💳 \*INFO PEMBAYARAN:\*\n🏦 Bank BRI: 007701001069565\n👤 a\.n Amelia Hanum\n\n🙏TERIMA KASIH/);
+  // Tanpa rekening aktif → hanya ucapan terima kasih
+  const none = buildNotaText(ORDER_A, mergeSettings({ payment: { bank: { enabled: false } } }));
+  assert.ok(none.endsWith('━━━━━━━━━━━━━━━━━━━━━━\n\n🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏'));
 });
 
 test('nota WA: ongkir, diskon, DP, pengiriman', () => {
@@ -215,7 +221,8 @@ test('nota PDF berkop: teks aman, nama file, isi dokumen', () => {
     const raw = doc.output();
     assert.ok(raw.startsWith('%PDF-'), 'file PDF valid');
     for (const t of ['HANS BATIK', 'NOTA PENJUALAN', 'HB-2611001', 'Ibu Sari', 'Jl. Batik No. 1, Banyumas',
-      'Kemeja batik cap \\(L\\)', 'Rp 525.000', 'LUNAS', 'lima ratus dua puluh lima ribu rupiah', 'Bank BCA: 1234567890',
+      'Kemeja batik cap \\(L\\)', 'Rp 525.000', 'LUNAS', 'lima ratus dua puluh lima ribu rupiah', 'BCA 1234567890',
+      'TERIMA KASIH TELAH BERMUAMALAH dengan kami.', 'rekening a.n Hans di:',
       'No. resi: JNE123', 'Hormat kami,']) {
       assert.ok(raw.includes(t), `PDF memuat "${t}"`);
     }

@@ -807,7 +807,7 @@ insert into public.app_settings (setting_key, setting_value) values
       'tagline', 'Pusat Batik Banyumasan & Oleh-oleh Khas Purwokerto',
       'whatsapp', '085712714445',
       'owner_name', '',
-      'nota_footer', 'Terima kasih telah berbelanja di Hans Batik & Resto 🙏')),
+      'nota_footer', '🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏')),
   ('letterhead', jsonb_build_object(
       'address', 'Jl. Menteri Supeno No. 81, Ds. Wiradadi, Kec. Sokaraja, Kab. Banyumas, Jawa Tengah 53181',
       'phone', '085712714445 / 08156508711',
@@ -816,8 +816,9 @@ insert into public.app_settings (setting_key, setting_value) values
       'logo', '', 'paper', 'A5', 'signer', '',
       'note', 'Barang yang sudah dibeli tidak dapat ditukar/dikembalikan kecuali ada perjanjian.')),
   ('payment', jsonb_build_object(
-      'account_holder', '',
-      'bank',  jsonb_build_object('enabled', false, 'name', '', 'account_number', ''),
+      'account_holder', 'Amelia Hanum',
+      'note', 'Untuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n {nama} di:',
+      'bank',  jsonb_build_object('enabled', true, 'name', 'BRI', 'account_number', '007701001069565'),
       'dana',  jsonb_build_object('enabled', false, 'number', ''),
       'qris',  jsonb_build_object('enabled', false, 'info', ''))),
   ('invoice', jsonb_build_object('prefix', 'HB', 'digits', 3)),
@@ -832,7 +833,7 @@ set setting_value = setting_value || jsonb_build_object(
       'name', 'HANS BATIK & RESTO',
       'tagline', 'Pusat Batik Banyumasan & Oleh-oleh Khas Purwokerto',
       'whatsapp', '085712714445',
-      'nota_footer', 'Terima kasih telah berbelanja di Hans Batik & Resto 🙏')
+      'nota_footer', '🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏')
 where setting_key = 'business'
   and setting_value ->> 'name' = 'HANS BATIK'
   and coalesce(setting_value ->> 'whatsapp', '') = '';
@@ -845,3 +846,18 @@ set setting_value = setting_value || jsonb_build_object(
 where setting_key = 'letterhead'
   and coalesce(setting_value ->> 'address', '') = ''
   and coalesce(setting_value ->> 'email', '') = '';
+-- Kalimat penutup lama → kalimat penutup Hans Batik & Resto.
+update public.app_settings
+set setting_value = setting_value || jsonb_build_object('nota_footer', '🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏')
+where setting_key = 'business'
+  and setting_value ->> 'nota_footer' in ('Terima kasih telah berbelanja di Hans Batik 🙏',
+                                          'Terima kasih telah berbelanja di Hans Batik & Resto 🙏');
+-- Rekening bawaan bila info pembayaran belum pernah diisi.
+update public.app_settings
+set setting_value = setting_value || jsonb_build_object(
+      'account_holder', 'Amelia Hanum',
+      'note', 'Untuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n {nama} di:',
+      'bank', jsonb_build_object('enabled', true, 'name', 'BRI', 'account_number', '007701001069565'))
+where setting_key = 'payment'
+  and coalesce(setting_value ->> 'account_holder', '') = ''
+  and coalesce(setting_value #>> '{bank,account_number}', '') = '';
