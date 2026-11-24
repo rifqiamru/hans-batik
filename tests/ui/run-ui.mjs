@@ -2,7 +2,7 @@
 // Jalankan: npm run test:ui   → tangkapan layar di tests/ui/screenshots/
 import { spawn, execSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import assert from 'node:assert/strict';
@@ -91,7 +91,7 @@ try {
   assert.ok(notaA.includes('   💰 *TOTAL: Rp 845.000*'));
   assert.ok(notaA.includes('👤 Pelanggan : Budi'));
   assert.ok(notaA.includes('🔢 Resi   : JNE123'));
-  assert.ok(notaA.endsWith('🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏\nUntuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n Amelia Hanum di:\n\nBRI 007701001069565'), 'penutup nota');
+  assert.ok(notaA.endsWith('🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏\nUntuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n Amelia Hanum di:\n\nBRI 007701001069565\nBank Jateng 2086060224'), 'penutup nota');
   assert.equal(await page.evaluate(() => window.__db.orders.length), 1, 'klik ganda tidak membuat transaksi ganda');
   ok('simpan nota A + klik ganda tetap 1 transaksi + format nota WA');
   await shot('04-nota-tersimpan');
@@ -105,6 +105,24 @@ try {
   const [pdfDl2] = await Promise.all([page.waitForEvent('download'), page.click('[data-pdf=share]')]);
   assert.equal(pdfDl2.suggestedFilename(), `Nota-HB-${yymm}001.pdf`);
   ok('nota PDF berkop: unduh & bagikan');
+
+  // Nota JPG berkop: unduh & bagikan (headless → diunduh)
+  const [jpgDl] = await Promise.all([page.waitForEvent('download'), page.click('[data-jpg=download]')]);
+  assert.equal(jpgDl.suggestedFilename(), `Nota-HB-${yymm}001.jpg`);
+  const jpg = readFileSync(await jpgDl.path());
+  assert.equal(jpg.subarray(0, 3).toString('hex'), 'ffd8ff', 'file JPG valid');
+  const jpgSize = await page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = 'data:image/jpeg;base64,' + b64;
+    await img.decode();
+    return [img.naturalWidth, img.naturalHeight];
+  }, jpg.toString('base64'));
+  assert.equal(jpgSize[0], 1240, 'lebar gambar nota');
+  assert.ok(jpgSize[1] > 1240 && jpgSize[1] < 2600, 'tinggi mengikuti isi: ' + jpgSize[1]);
+  writeFileSync(join(shots, '04b-nota-jpg.jpg'), jpg);
+  const [jpgDl2] = await Promise.all([page.waitForEvent('download'), page.click('[data-jpg=share]')]);
+  assert.equal(jpgDl2.suggestedFilename(), `Nota-HB-${yymm}001.jpg`);
+  ok('nota JPG berkop: unduh & bagikan');
 
   await page.click('#btn-copy');
   const clip = await page.evaluate(() => navigator.clipboard.readText());
@@ -270,6 +288,9 @@ try {
   // ---------- Pengaturan: rekening bank → tampil di nota; kop nota PDF
   await go('#/pengaturan');
   assert.ok(await page.isChecked('#set-bayar [name=bank_enabled]'), 'rekening BRI aktif bawaan');
+  assert.ok(await page.isChecked('#set-bayar [name=bank2_enabled]'), 'rekening Bank Jateng aktif bawaan');
+  assert.equal(await page.inputValue('#set-bayar [name=bank2_name]'), 'Bank Jateng');
+  assert.equal(await page.inputValue('#set-bayar [name=bank2_account]'), '2086060224');
   await page.fill('#set-bayar [name=bank_name]', 'BCA');
   await page.fill('#set-bayar [name=bank_account]', '1234567890');
   await page.fill('#set-bayar [name=account_holder]', 'Hans');
@@ -277,7 +298,7 @@ try {
   await page.waitForSelector('.toast-success');
   await page.click('#btn-preview');
   const prev = await text('.sheet .wa-preview');
-  assert.ok(prev.includes('rekening a.n Hans di:\n\nBCA 1234567890'), 'rekening tampil di penutup nota');
+  assert.ok(prev.includes('rekening a.n Hans di:\n\nBCA 1234567890\nBank Jateng 2086060224'), 'rekening tampil di penutup nota');
   assert.ok(!prev.includes('Dana'), 'Dana nonaktif tidak tampil');
   await page.click('.sheet [data-close]');
   ok('pengaturan pembayaran: rekening aktif tampil di nota, metode nonaktif tidak');
@@ -315,6 +336,48 @@ try {
   const after = Number((await text('.bc-value')).replace(/[^0-9-]/g, ''));
   assert.equal(after - before, 100000, `saldo awal menambah saldo: ${before} → ${after}`);
   ok('saldo awal di Pengaturan langsung menambah saldo di dashboard');
+
+  // ---------- Nota C: diskon per produk (persen & Rupiah)
+  await go('#/nota');
+  await page.fill('[name=customer_name]', 'Citra');
+  await page.fill('.item-row >> nth=0 >> [data-f=item_name]', 'Kemeja batik cap (L)');
+  await page.fill('.item-row >> nth=0 >> [data-f=quantity]', '2');
+  await page.fill('.item-row >> nth=0 >> [data-f=unit_price]', '175000');
+  await page.selectOption('.item-row >> nth=0 >> [data-f=disc_mode]', 'pct');
+  await page.fill('.item-row >> nth=0 >> [data-f=disc_value]', '10');
+  await page.click('#btn-add-item');
+  await page.fill('.item-row >> nth=1 >> [data-f=item_name]', 'Kain batik tulis parang');
+  await page.fill('.item-row >> nth=1 >> [data-f=unit_price]', '475000');
+  await page.fill('.item-row >> nth=1 >> [data-f=disc_value]', '25000');
+  assert.equal(await page.inputValue('.item-row >> nth=1 >> [data-f=disc_value]'), '25.000', 'format ribuan diskon Rp');
+  assert.match(await text('.item-row >> nth=0 >> [data-sub]'), /Rp350\.000\s*−Rp35\.000 = Rp315\.000/);
+  assert.match(await text('.item-row >> nth=1 >> [data-sub]'), /Rp475\.000\s*−Rp25\.000 = Rp450\.000/);
+  assert.match(await text('#calc-box'), /Diskon per produk\s*−Rp60\.000/);
+  assert.equal(await text('#bar-total'), 'Rp765.000');
+  await page.locator('#items').screenshot({ path: join(shots, '15a-diskon-per-produk.png') });
+  // Diskon melebihi harga ditolak
+  await page.fill('.item-row >> nth=1 >> [data-f=disc_value]', '500000');
+  assert.match(await text('.item-row >> nth=1 >> [data-sub]'), /melebihi/);
+  await page.click('#btn-save');
+  await page.waitForSelector('.toast-error');
+  await page.fill('.item-row >> nth=1 >> [data-f=disc_value]', '25000');
+  await page.click('#btn-save');
+  await page.waitForSelector('.success-head');
+  const notaC = await text('.wa-preview');
+  assert.ok(notaC.includes('   2x Rp 175.000 = Rp 350.000\n   🏷️ Diskon -Rp 35.000 → Rp 315.000'), 'diskon produk di nota WA');
+  assert.ok(notaC.includes('💰 *TOTAL: Rp 765.000*'));
+  const savedC = await page.evaluate(() => window.__db.items.filter((i) => i.item_name === 'Kemeja batik cap (L)').map((i) => [i.discount, i.subtotal]));
+  assert.deepEqual(savedC.at(-1), [35000, 315000], 'diskon produk tersimpan');
+  const [jpgC] = await Promise.all([page.waitForEvent('download'), page.click('[data-jpg=download]')]);
+  writeFileSync(join(shots, '15b-nota-jpg-diskon.jpg'), readFileSync(await jpgC.path()));
+  // Ubah transaksi: diskon tetap terbaca (sebagai Rupiah)
+  const idC = await page.evaluate(() => window.__db.orders.at(-1).id);
+  await go(`#/nota/ubah/${idC}`);
+  await page.waitForSelector('#nota-form');
+  assert.equal(await page.inputValue('.item-row >> nth=0 >> [data-f=disc_value]'), '35.000');
+  assert.equal(await text('#bar-total'), 'Rp765.000');
+  await go('#/');
+  ok('diskon per produk: persen & Rupiah, validasi, nota WA, JPG, ubah transaksi');
 
   // ---------- Menu lainnya & desktop
   await go('#/');

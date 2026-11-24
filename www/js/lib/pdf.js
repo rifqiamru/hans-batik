@@ -53,7 +53,9 @@ export function notaFileName(order) {
  * @param {Function} JsPDF   konstruktor jsPDF
  * @param {object} order     hasil get_order (dengan items & service_name)
  * @param {object} settings  hasil mergeSettings
- * @param {object} [opt]     { logo: dataURL PNG/JPEG, compress: false untuk pengujian }
+ * @param {object} [opt]     { logo: dataURL PNG/JPEG, compress: false untuk pengujian,
+ *                             continuous: true = satu halaman memanjang setinggi isi (untuk nota JPG;
+ *                             JsPDF harus berupa CanvasDoc dari nota-image.js) }
  * @returns jsPDF document
  */
 export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}) {
@@ -61,7 +63,7 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
   const kop = { ...DEFAULT_SETTINGS.letterhead, ...(settings.letterhead || {}) };
   const P = PAPER[kop.paper] || PAPER.A5;
   const doc = new JsPDF({ unit: 'mm', format: kop.paper === 'A4' ? 'a4' : 'a5', orientation: 'portrait', compress: opt.compress !== false });
-  const W = P.w; const H = P.h; const M = P.m;
+  const W = P.w; let H = P.h; const M = P.m;
   const fs = (n) => n * P.fs;
   const color = (c, kind = 'text') => {
     if (kind === 'text') doc.setTextColor(...c);
@@ -176,12 +178,15 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
   }
 
   // ------------------------------------------------------------------ Tabel barang
+  // Kolom Diskon hanya muncul bila ada barang yang didiskon.
+  const hasItemDisc = (order.items || []).some((it) => Number(it.discount) > 0);
   const cols = [
     { key: 'no', label: 'No', w: fs(8), align: 'center' },
     { key: 'name', label: 'Nama Barang', w: 0, align: 'left' },
     { key: 'qty', label: 'Qty', w: fs(11), align: 'center' },
-    { key: 'price', label: 'Harga', w: fs(24), align: 'right' },
-    { key: 'sub', label: 'Jumlah', w: fs(26), align: 'right' },
+    { key: 'price', label: 'Harga', w: fs(hasItemDisc ? 22 : 24), align: 'right' },
+    ...(hasItemDisc ? [{ key: 'disc', label: 'Diskon', w: fs(20), align: 'right' }] : []),
+    { key: 'sub', label: 'Jumlah', w: fs(hasItemDisc ? 24 : 26), align: 'right' },
   ];
   const tableW = W - 2 * M;
   cols[1].w = tableW - cols.reduce((t, c) => t + c.w, 0);
@@ -202,7 +207,7 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
   }
   const bottomLimit = H - M - 6;
   function ensure(space) {
-    if (y + space <= bottomLimit) return false;
+    if (opt.continuous || y + space <= bottomLimit) return false;
     doc.addPage();
     y = M;
     return true;
@@ -224,7 +229,9 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
     let x = M;
     const vals = {
       no: String(i + 1), name: nameLines, qty: formatQuantity(it.quantity),
-      price: formatNumber(it.unit_price), sub: formatNumber(it.subtotal ?? Math.round(it.quantity * it.unit_price)),
+      price: formatNumber(it.unit_price),
+      disc: Number(it.discount) > 0 ? '-' + formatNumber(it.discount) : '-',
+      sub: formatNumber(it.subtotal ?? (Math.round(it.quantity * it.unit_price) - (Number(it.discount) || 0))),
     };
     for (const c of cols) {
       doc.text(vals[c.key], cellX(c, x), base, { align: c.align });
@@ -241,7 +248,7 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
   const rows = [['Subtotal', R(goods)]];
   if (Number(order.shipping_fee) > 0) rows.push([`Ongkos kirim${order.courier ? ` (${pdfSafe(order.courier)})` : ''}`, R(order.shipping_fee)]);
   if (Number(order.additional_fee) > 0) rows.push(['Biaya tambahan', R(order.additional_fee)]);
-  if (Number(order.discount) > 0) rows.push(['Diskon', '- ' + R(order.discount)]);
+  if (Number(order.discount) > 0) rows.push([hasItemDisc ? 'Diskon nota' : 'Diskon', '- ' + R(order.discount)]);
   const totW = fs(66);
   const totX = W - M - totW;
   const totalsH = rows.length * 5 + 9 + (order.payment_status === 'DP' ? 10 : 5);
@@ -331,7 +338,12 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
     const fLines = footer ? wrap(footer, bw - 8) : [];
     font('normal', 8.5);
     const nLines = payNote && payList.length ? wrap(payNote, bw - 8) : [];
-    const aLines = payNote ? payList.map((p) => pdfSafe(`${p.short} ${p.value}`)) : [];
+    let aLines = payNote ? payList.map((p) => pdfSafe(`${p.short} ${p.value}`)) : [];
+    // Dua rekening dalam satu baris bila muat (nota tetap 1 halaman).
+    font('bold', 11);
+    if (aLines.length === 2 && doc.getTextWidth(aLines.join('   |   ')) + aLines.join('   |   ').length * 0.3 <= bw - 8) {
+      aLines = [aLines.join('   |   ')];
+    }
     const bh = 4 + fLines.length * lh(9.5) + (nLines.length ? 1 + nLines.length * lh(8.5) : 0)
       + (aLines.length ? 2 + aLines.length * lh(11) : 0) + 2.5;
     ensure(bh + 2);
@@ -380,6 +392,11 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
   y += signH + 3;
 
   // ------------------------------------------------------------------ Kaki halaman (semua halaman)
+  if (opt.continuous) {
+    // Nota gambar: tinggi halaman = tinggi isi (tanpa ruang kosong di bawah).
+    H = y + M + 6;
+    doc.setPageHeight(H);
+  }
   const pageFoot = pdfSafe([biz.name, kop.website].filter(Boolean).join('  |  '));
   const pages = doc.getNumberOfPages();
   for (let p = 1; p <= pages; p++) {

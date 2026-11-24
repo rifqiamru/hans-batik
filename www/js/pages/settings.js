@@ -77,6 +77,13 @@ export async function render(root, _params, ctx) {
         </div>
       </fieldset>
       <fieldset class="pay-block">
+        <label class="switch"><input type="checkbox" name="bank2_enabled" ${pay.bank2?.enabled ? 'checked' : ''}><span class="switch-ui"></span><span>Tampilkan rekening bank ke-2</span></label>
+        <div class="grid-2">
+          <label class="field"><span class="field-label">Nama bank</span><input name="bank2_name" maxlength="30" value="${esc(pay.bank2?.name)}"></label>
+          <label class="field"><span class="field-label">Nomor rekening</span><input name="bank2_account" inputmode="numeric" maxlength="30" value="${esc(pay.bank2?.account_number)}"></label>
+        </div>
+      </fieldset>
+      <fieldset class="pay-block">
         <label class="switch"><input type="checkbox" name="dana_enabled" ${pay.dana?.enabled ? 'checked' : ''}><span class="switch-ui"></span><span>Tampilkan Dana</span></label>
         <label class="field"><span class="field-label">Nomor Dana</span><input name="dana_number" inputmode="tel" maxlength="20" value="${esc(pay.dana?.number)}"></label>
       </fieldset>
@@ -167,6 +174,7 @@ export async function render(root, _params, ctx) {
     account_holder: f.account_holder.value.trim(),
     note: f.pay_note.value.trim(),
     bank: { enabled: f.bank_enabled.checked, name: f.bank_name.value.trim(), account_number: f.bank_account.value.replace(/\s/g, '') },
+    bank2: { enabled: f.bank2_enabled.checked, name: f.bank2_name.value.trim(), account_number: f.bank2_account.value.replace(/\s/g, '') },
     dana: { enabled: f.dana_enabled.checked, number: cleanPhone(f.dana_number.value) },
     qris: { enabled: f.qris_enabled.checked, info: f.qris_info.value.trim() },
   });
@@ -174,6 +182,7 @@ export async function render(root, _params, ctx) {
     e.preventDefault();
     const val = readPay(e.target);
     if (val.bank.enabled && !val.bank.account_number) return toast('Isi nomor rekening atau nonaktifkan bank.', 'error');
+    if (val.bank2.enabled && !val.bank2.account_number) return toast('Isi nomor rekening bank ke-2 atau nonaktifkan.', 'error');
     if (val.dana.enabled && !val.dana.number) return toast('Isi nomor Dana atau nonaktifkan Dana.', 'error');
     await save(e.target.querySelector('[type=submit]'), 'payment', val);
   });
@@ -223,7 +232,7 @@ export async function render(root, _params, ctx) {
       payment_method: 'Transfer Bank', shipping_address: 'Jl. Contoh No. 1, Kota', courier: 'JNE REG', tracking_number: '',
       goods_total: 825000, shipping_fee: 20000, additional_fee: 0, discount: 25000, total_amount: 820000,
       paid_amount: 820000, remaining_amount: 0, payment_status: 'Lunas', order_status: 'Selesai',
-      items: [{ item_name: 'Kain batik tulis motif parang 2 m', quantity: 1, unit_price: 475000, subtotal: 475000 },
+      items: [{ item_name: 'Kain batik tulis motif parang 2 m', quantity: 1, unit_price: 475000, discount: 0, subtotal: 475000 },
               { item_name: 'Kemeja batik cap lengan panjang (L)', quantity: 2, unit_price: 175000, subtotal: 350000 }],
     };
   }

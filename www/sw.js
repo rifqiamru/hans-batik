@@ -3,11 +3,11 @@
 //   dan tetap tampil saat offline.
 // - TIDAK menyimpan data Supabase: semua permintaan ke server selalu lewat jaringan,
 //   sehingga aplikasi tidak pernah menampilkan/mengklaim data tersimpan yang palsu.
-const VERSION = 'hb-v1.1.0';
+const VERSION = 'hb-v1.2.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css', './vendor/supabase.js', './vendor/jspdf.umd.min.js', './js/config.js', './js/boot-guard.js',
   './js/app.js', './js/api.js', './js/ui.js', './js/icons.js',
-  './js/lib/format.js', './js/lib/calc.js', './js/lib/templates.js', './js/lib/csv.js', './js/lib/drafts.js', './js/lib/chart.js', './js/lib/pdf.js',
+  './js/lib/format.js', './js/lib/calc.js', './js/lib/templates.js', './js/lib/csv.js', './js/lib/drafts.js', './js/lib/chart.js', './js/lib/pdf.js', './js/lib/nota-image.js',
   './js/pages/dashboard.js', './js/pages/nota.js', './js/pages/orders.js', './js/pages/rekap.js',
   './js/pages/expenses.js', './js/pages/reports.js', './js/pages/settings.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/favicon.png', './icons/apple-touch-icon.png', './icons/logo-kop.png',

@@ -6,20 +6,37 @@ export const PAYMENT_STATUSES = ['Belum Bayar', 'DP', 'Lunas'];
 export const ORDER_STATUSES = ['Pesanan', 'Diproses', 'Dikirim', 'Selesai', 'Dibatalkan'];
 export const PAYMENT_METHODS = ['Tunai', 'Transfer Bank', 'Dana', 'QRIS', 'Lainnya'];
 
-export function itemSubtotal(quantity, unitPrice) {
+/** Harga kotor baris = jumlah × harga satuan (dibulatkan ke Rupiah). */
+export function itemGross(quantity, unitPrice) {
   const q = Math.round((Number(quantity) || 0) * 100) / 100;
   return Math.round(q * (Number(unitPrice) || 0));
 }
 
+/** Subtotal baris = jumlah × harga − diskon per produk (identik dengan trigger order_items_compute). */
+export function itemSubtotal(quantity, unitPrice, discount = 0) {
+  return itemGross(quantity, unitPrice) - int(discount);
+}
+
 /**
- * @param {object} o  { items:[{quantity,unit_price}], shipping_fee, additional_fee,
+ * Diskon per produk dalam Rupiah. mode 'pct' = persen dari harga kotor baris
+ * (dibulatkan ke Rupiah), selain itu nominal Rupiah.
+ */
+export function itemDiscountAmount(gross, mode, value) {
+  const v = Number(value) || 0;
+  if (v <= 0) return 0;
+  if (mode === 'pct') return Math.round((Number(gross) || 0) * Math.min(v, 100) / 100);
+  return Math.round(v);
+}
+
+/**
+ * @param {object} o  { items:[{quantity,unit_price,discount}], shipping_fee, additional_fee,
  *                     additional_fee_is_revenue, discount, payment_status, paid_amount }
  * @returns {{goods_total,total_amount,sales_revenue,trust_amount,paid_amount,remaining_amount,errors:string[]}}
  */
 export function computeOrder(o) {
   const errors = [];
   const items = Array.isArray(o.items) ? o.items : [];
-  const goods_total = items.reduce((s, it) => s + itemSubtotal(it.quantity, it.unit_price), 0);
+  const goods_total = items.reduce((s, it) => s + Math.max(0, itemSubtotal(it.quantity, it.unit_price, it.discount)), 0);
   const shipping_fee = int(o.shipping_fee);
   const additional_fee = int(o.additional_fee);
   const discount = int(o.discount);
@@ -46,6 +63,7 @@ export function computeOrder(o) {
   items.forEach((it, i) => {
     if (!String(it.item_name ?? '').trim()) errors.push(`Nama barang baris ${i + 1} belum diisi.`);
     if (!(Number(it.quantity) > 0)) errors.push(`Jumlah barang baris ${i + 1} harus lebih dari 0.`);
+    if (int(it.discount) > itemGross(it.quantity, it.unit_price)) errors.push(`Diskon barang baris ${i + 1} melebihi harganya.`);
   });
 
   return { goods_total, total_amount, sales_revenue, trust_amount, paid_amount, remaining_amount, errors };

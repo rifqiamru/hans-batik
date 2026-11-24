@@ -5,11 +5,12 @@ import {
   rupiah, formatNumber, parseAmount, parseQuantity, formatDateLong, todayJakarta,
   periodRange, startOfWeek, waNumber, cleanPhone, isValidPhone, rupiahShort, terbilang,
 } from '../www/js/lib/format.js';
-import { computeOrder, summarize, itemSubtotal } from '../www/js/lib/calc.js';
+import { computeOrder, summarize, itemSubtotal, itemGross, itemDiscountAmount } from '../www/js/lib/calc.js';
 import { buildNotaText, buildRekapText, mergeSettings, DEFAULT_SETTINGS, whatsappUrl } from '../www/js/lib/templates.js';
 import { toCSV } from '../www/js/lib/csv.js';
 import { buildNotaPDF, pdfSafe, notaFileName } from '../www/js/lib/pdf.js';
 import { loadJsPDFNode } from './helpers/jspdf-node.mjs';
+import { makeCanvasDoc, notaImageFileName } from '../www/js/lib/nota-image.js';
 import { readFileSync } from 'node:fs';
 
 test('format Rupiah tanpa desimal', () => {
@@ -103,7 +104,7 @@ const ORDER_A = {
     { item_name: 'Selendang batik', quantity: 1, unit_price: 175000, subtotal: 175000 },
   ],
 };
-const SET_PAY = mergeSettings({ payment: { account_holder: 'Hans', bank: { enabled: true, name: 'BCA', account_number: '1234567890' } } });
+const SET_PAY = mergeSettings({ payment: { account_holder: 'Hans', bank: { enabled: true, name: 'BCA', account_number: '1234567890' }, bank2: { enabled: false } } });
 
 test('format nota WhatsApp Hans Batik', () => {
   const expected = [
@@ -130,16 +131,44 @@ test('format nota WhatsApp Hans Batik', () => {
     'Untuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n Amelia Hanum di:',
     '',
     'BRI 007701001069565',
+    'Bank Jateng 2086060224',
   ].join('\n');
   assert.equal(buildNotaText(ORDER_A, DEFAULT_SETTINGS), expected);
   // Rekening lain: {nama} ikut berganti
   assert.match(buildNotaText(ORDER_A, SET_PAY), /rekening a\.n Hans di:\n\nBCA 1234567890$/);
   // Tanpa kalimat pengantar → format daftar pembayaran
   const plain = buildNotaText(ORDER_A, mergeSettings({ payment: { note: '' } }));
-  assert.match(plain, /💳 \*INFO PEMBAYARAN:\*\n🏦 Bank BRI: 007701001069565\n👤 a\.n Amelia Hanum\n\n🙏TERIMA KASIH/);
+  assert.match(plain, /💳 \*INFO PEMBAYARAN:\*\n🏦 Bank BRI: 007701001069565\n🏦 Bank Jateng: 2086060224\n👤 a\.n Amelia Hanum\n\n🙏TERIMA KASIH/);
   // Tanpa rekening aktif → hanya ucapan terima kasih
-  const none = buildNotaText(ORDER_A, mergeSettings({ payment: { bank: { enabled: false } } }));
+  const none = buildNotaText(ORDER_A, mergeSettings({ payment: { bank: { enabled: false }, bank2: { enabled: false } } }));
   assert.ok(none.endsWith('━━━━━━━━━━━━━━━━━━━━━━\n\n🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏'));
+});
+
+test('diskon per produk: hitung, validasi, nota WA', () => {
+  assert.equal(itemGross(2, 175000), 350000);
+  assert.equal(itemSubtotal(2, 175000, 35000), 315000);
+  assert.equal(itemDiscountAmount(350000, 'pct', 10), 35000);
+  assert.equal(itemDiscountAmount(350000, 'pct', 150), 350000, 'persen dibatasi 100%');
+  assert.equal(itemDiscountAmount(350000, 'rp', 25000), 25000);
+  assert.equal(itemDiscountAmount(350000, 'rp', 0), 0);
+  const c = computeOrder({
+    items: [{ item_name: 'Kemeja', quantity: 2, unit_price: 175000, discount: 35000 },
+      { item_name: 'Selendang', quantity: 1, unit_price: 175000 }],
+    discount: 5000, shipping_fee: 20000, payment_status: 'Lunas',
+  });
+  assert.equal(c.goods_total, 490000);
+  assert.equal(c.total_amount, 505000);
+  assert.equal(c.sales_revenue, 485000);
+  assert.deepEqual(c.errors, []);
+  const bad = computeOrder({ items: [{ item_name: 'X', quantity: 1, unit_price: 1000, discount: 2000 }] });
+  assert.ok(bad.errors.some((e) => /Diskon barang baris 1/.test(e)));
+
+  const txt = buildNotaText({
+    ...ORDER_A, goods_total: 490000, total_amount: 490000,
+    items: [{ item_name: 'Kemeja batik cap (L)', quantity: 2, unit_price: 175000, discount: 35000, subtotal: 315000 },
+      { item_name: 'Selendang batik', quantity: 1, unit_price: 175000, discount: 0, subtotal: 175000 }],
+  }, DEFAULT_SETTINGS);
+  assert.match(txt, /1\. Kemeja batik cap \(L\)\n {3}2x Rp 175\.000 = Rp 350\.000\n {3}🏷️ Diskon -Rp 35\.000 → Rp 315\.000\n2\. Selendang batik\n {3}1x Rp 175\.000 = Rp 175\.000\n/);
 });
 
 test('nota WA: ongkir, diskon, DP, pengiriman', () => {
@@ -228,11 +257,52 @@ test('nota PDF berkop: teks aman, nama file, isi dokumen', () => {
     }
     assert.ok(/\/Subtype \/Image/.test(raw), 'logo kop tertanam');
   }
+  // Diskon per produk → kolom Diskon & dua rekening dalam satu baris.
+  const disc = {
+    ...ORDER_A, goods_total: 490000, total_amount: 490000,
+    items: [{ item_name: 'Kemeja batik cap (L)', quantity: 2, unit_price: 175000, discount: 35000, subtotal: 315000 },
+      { item_name: 'Selendang batik', quantity: 1, unit_price: 175000, discount: 0, subtotal: 175000 }],
+  };
+  const dRaw = buildNotaPDF(JsPDF, disc, DEFAULT_SETTINGS, { compress: false }).output();
+  for (const t of ['Diskon', '-35.000', '315.000', 'BRI 007701001069565   |   Bank Jateng 2086060224']) {
+    assert.ok(dRaw.includes(t), `PDF diskon memuat "${t}"`);
+  }
   // Banyak barang → halaman bertambah, tidak error.
   const many = { ...ORDER_A, items: Array.from({ length: 40 }, (_, i) => ({ item_name: `Batik motif ${i + 1}`, quantity: 1, unit_price: 100000, subtotal: 100000 })) };
   const doc = buildNotaPDF(JsPDF, many, settings, { compress: false });
   assert.ok(doc.getNumberOfPages() >= 2, 'nota panjang lanjut ke halaman berikutnya');
   assert.ok(doc.output().includes('Hal. 2/'), 'nomor halaman');
+});
+
+test('nota JPG: tata letak PDF digambar ke canvas, setinggi isi', () => {
+  assert.equal(notaImageFileName({ invoice_number: 'HB-2611001' }), 'Nota-HB-2611001.jpg');
+  // Canvas tiruan: mencatat teks yang digambar; lebar huruf diperkirakan.
+  const drawn = [];
+  const created = [];
+  const fakeCtx = () => {
+    let fontPx = 10;
+    return new Proxy({
+      set font(v) { fontPx = parseFloat(String(v).match(/([\d.]+)px/)[1]); },
+      get font() { return `${fontPx}px`; },
+      measureText: (t) => ({ width: String(t).length * fontPx * 0.5 }),
+      fillText: (t) => drawn.push(t),
+    }, { get: (o, k) => (k in o ? o[k] : () => {}), set: (o, k, v) => { if (k === 'font') o.font = v; return true; } });
+  };
+  const createCanvas = (w, h) => { const c = { width: w, height: h, getContext: fakeCtx }; created.push(c); return c; };
+  const logo = 'data:image/png;base64,AAAA';
+  const CanvasDoc = makeCanvasDoc({ createCanvas, images: new Map([[logo, { img: {}, width: 100, height: 100 }]]) });
+  const many = { ...ORDER_A, customer_name: 'Ibu Sari', items: Array.from({ length: 30 }, (_, i) => ({ item_name: `Batik motif ${i + 1}`, quantity: 1, unit_price: 100000, discount: i === 0 ? 10000 : 0, subtotal: i === 0 ? 90000 : 100000 })) };
+  const doc = buildNotaPDF(CanvasDoc, many, DEFAULT_SETTINGS, { logo, continuous: true });
+  assert.equal(doc.getNumberOfPages(), 1, 'satu gambar memanjang');
+  assert.ok(doc.height > 210, 'tinggi mengikuti isi');
+  const canvas = doc.toCanvas(1240);
+  assert.equal(canvas.width, 1240);
+  assert.equal(canvas.height, Math.ceil(doc.height * 1240 / 148));
+  for (const t of ['NOTA PENJUALAN', 'HB-2611001', 'Ibu Sari', 'Batik motif 30', '-10.000', 'LUNAS', 'Hormat kami,']) {
+    assert.ok(drawn.join('').includes(t), `JPG memuat "${t}"`);
+  }
+  const short = buildNotaPDF(CanvasDoc, ORDER_A, DEFAULT_SETTINGS, { continuous: true });
+  assert.ok(short.height < 210, 'nota pendek tidak menyisakan ruang kosong');
 });
 
 test('link WhatsApp & CSV', () => {

@@ -167,10 +167,13 @@ create table if not exists public.order_items (
   item_name   text not null check (char_length(btrim(item_name)) between 1 and 150),
   quantity    numeric(10,2) not null default 1 check (quantity > 0),
   unit_price  integer not null default 0 check (unit_price >= 0),
-  subtotal    integer not null default 0 check (subtotal >= 0),
+  discount    integer not null default 0 check (discount >= 0),  -- diskon per produk (Rupiah, untuk baris ini)
+  subtotal    integer not null default 0 check (subtotal >= 0),   -- jumlah × harga − diskon
   sort_order  integer not null default 0,
   created_at  timestamptz not null default now()
 );
+-- Database versi lama: tambahkan kolom diskon per produk.
+alter table public.order_items add column if not exists discount integer not null default 0 check (discount >= 0);
 
 create table if not exists public.expenses (
   id              uuid primary key default gen_random_uuid(),
@@ -223,12 +226,20 @@ create trigger app_settings_updated_at before update on public.app_settings
 -- 6. TRIGGER: perhitungan item & order (sumber kebenaran angka)
 -- ---------------------------------------------------------------------
 
--- Subtotal item = jumlah × harga satuan (dibulatkan ke Rupiah).
+-- Subtotal item = jumlah × harga satuan (dibulatkan ke Rupiah) − diskon produk.
 create or replace function public.order_items_compute()
 returns trigger language plpgsql as $$
+declare
+  v_gross integer;
 begin
   new.item_name := btrim(new.item_name);
-  new.subtotal  := round(new.quantity * new.unit_price)::integer;
+  new.discount  := coalesce(new.discount, 0);
+  v_gross       := round(new.quantity * new.unit_price)::integer;
+  if new.discount > v_gross then
+    raise exception 'Diskon barang "%" (Rp%) melebihi harganya (Rp%).', new.item_name, new.discount, v_gross
+      using errcode = '22023';
+  end if;
+  new.subtotal  := v_gross - new.discount;
   return new;
 end;
 $$;
@@ -260,6 +271,7 @@ create trigger order_items_sync_parent after insert or update or delete on publi
   for each row execute function public.order_items_sync_parent();
 
 -- Rumus utama (lihat README "Aturan Akuntansi"):
+--   goods_total      = Σ subtotal item (jumlah × harga − diskon per produk)
 --   total_amount     = goods_total + shipping_fee + additional_fee - discount
 --   sales_revenue    = goods_total + additional_fee (jika pendapatan) - discount
 --   trust_amount     = shipping_fee + additional_fee (jika hanya penggantian biaya)
@@ -414,6 +426,8 @@ declare
   v_item      jsonb;
   v_qty       numeric;
   v_price     integer;
+  v_disc      integer;
+  v_gross     integer;
 begin
   if not public.is_owner() then
     raise exception 'Akses ditolak.' using errcode = '42501';
@@ -446,7 +460,16 @@ begin
     if v_price < 0 then
       raise exception 'Harga barang "%" tidak boleh negatif.', v_item ->> 'item_name' using errcode = '22023';
     end if;
-    v_goods := v_goods + round(round(v_qty, 2) * v_price)::integer;
+    v_disc  := coalesce(nullif(v_item ->> 'discount', '')::integer, 0);
+    v_gross := round(round(v_qty, 2) * v_price)::integer;
+    if v_disc < 0 then
+      raise exception 'Diskon barang "%" tidak boleh negatif.', v_item ->> 'item_name' using errcode = '22023';
+    end if;
+    if v_disc > v_gross then
+      raise exception 'Diskon barang "%" (Rp%) melebihi harganya (Rp%).', btrim(v_item ->> 'item_name'), v_disc, v_gross
+        using errcode = '22023';
+    end if;
+    v_goods := v_goods + v_gross - v_disc;
   end loop;
 
   if nullif(p ->> 'service_category_id', '') is not null and not exists (
@@ -515,11 +538,12 @@ begin
     delete from public.order_items where order_id = v_id;
   end if;
 
-  insert into public.order_items (order_id, item_name, quantity, unit_price, sort_order)
+  insert into public.order_items (order_id, item_name, quantity, unit_price, discount, sort_order)
   select v_id,
          btrim(e.value ->> 'item_name'),
          round(coalesce(nullif(e.value ->> 'quantity', '')::numeric, 1), 2),
          coalesce(nullif(e.value ->> 'unit_price', '')::integer, 0),
+         coalesce(nullif(e.value ->> 'discount', '')::integer, 0),
          e.ordinality::integer
   from jsonb_array_elements(v_items) with ordinality as e(value, ordinality);
 
@@ -819,6 +843,7 @@ insert into public.app_settings (setting_key, setting_value) values
       'account_holder', 'Amelia Hanum',
       'note', 'Untuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n {nama} di:',
       'bank',  jsonb_build_object('enabled', true, 'name', 'BRI', 'account_number', '007701001069565'),
+      'bank2', jsonb_build_object('enabled', true, 'name', 'Bank Jateng', 'account_number', '2086060224'),
       'dana',  jsonb_build_object('enabled', false, 'number', ''),
       'qris',  jsonb_build_object('enabled', false, 'info', ''))),
   ('invoice', jsonb_build_object('prefix', 'HB', 'digits', 3)),
@@ -861,3 +886,9 @@ set setting_value = setting_value || jsonb_build_object(
 where setting_key = 'payment'
   and coalesce(setting_value ->> 'account_holder', '') = ''
   and coalesce(setting_value #>> '{bank,account_number}', '') = '';
+-- Rekening kedua: Bank Jateng a.n Amelia Hanum (sekali saja, bila belum ada).
+update public.app_settings
+set setting_value = setting_value || jsonb_build_object(
+      'bank2', jsonb_build_object('enabled', true, 'name', 'Bank Jateng', 'account_number', '2086060224'))
+where setting_key = 'payment'
+  and not (setting_value ? 'bank2');

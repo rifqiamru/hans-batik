@@ -98,7 +98,8 @@ export async function saveOrder(p) {
     db.orders.push(o);
   }
   p.items.forEach((it, i) => db.items.push({ id: uid(), order_id: o.id, item_name: it.item_name, quantity: it.quantity,
-    unit_price: it.unit_price, subtotal: itemSubtotal(it.quantity, it.unit_price), sort_order: i + 1 }));
+    unit_price: it.unit_price, discount: Number(it.discount) || 0,
+    subtotal: itemSubtotal(it.quantity, it.unit_price, it.discount), sort_order: i + 1 }));
   recompute(o);
   return full(o);
 }

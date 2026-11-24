@@ -8,12 +8,15 @@ import {
 import {
   rupiah, todayJakarta, formatNumber, parseQuantity, formatQuantity, cleanPhone, isValidPhone,
 } from '../lib/format.js';
-import { computeOrder, itemSubtotal, PAYMENT_STATUSES, ORDER_STATUSES, PAYMENT_METHODS } from '../lib/calc.js';
+import { computeOrder, itemSubtotal, itemGross, itemDiscountAmount, PAYMENT_STATUSES, ORDER_STATUSES, PAYMENT_METHODS } from '../lib/calc.js';
 import { buildNotaText } from '../lib/templates.js';
 import { downloadNotaPDF, shareNotaPDF, openNotaPDF } from '../lib/pdf.js';
+import { downloadNotaJPG, shareNotaJPG } from '../lib/nota-image.js';
 import { draftKey, loadDraft, saveDraft, clearDraft, hasMeaningfulContent } from '../lib/drafts.js';
 
-const EMPTY_ITEM = () => ({ item_name: '', quantity: 1, unit_price: 0 });
+// discount = diskon per produk (Rupiah, untuk seluruh baris). disc_mode & disc_value
+// hanya untuk formulir: diskon bisa diisi nominal Rupiah ('rp') atau persen ('pct').
+const EMPTY_ITEM = () => ({ item_name: '', quantity: 1, unit_price: 0, discount: 0, disc_mode: 'rp', disc_value: 0 });
 
 function emptyForm() {
   return {
@@ -36,7 +39,10 @@ function formFromOrder(o) {
     service_category_id: o.service_category_id || '', description: o.description || '',
     shipping_address: o.shipping_address || '', courier: o.courier || '',
     tracking_number: o.tracking_number || '',
-    items: (o.items || []).map((i) => ({ item_name: i.item_name, quantity: Number(i.quantity), unit_price: i.unit_price })),
+    items: (o.items || []).map((i) => ({
+      item_name: i.item_name, quantity: Number(i.quantity), unit_price: i.unit_price,
+      discount: Number(i.discount) || 0, disc_mode: 'rp', disc_value: Number(i.discount) || 0,
+    })),
     shipping_fee: o.shipping_fee, additional_fee: o.additional_fee,
     additional_fee_is_revenue: o.additional_fee_is_revenue !== false, discount: o.discount,
     payment_method: o.payment_method || 'Tunai', payment_status: o.payment_status,
@@ -148,7 +154,7 @@ export async function render(root, params, ctx) {
         ${moneyInputHTML({ name: 'shipping_fee', label: 'Ongkos kirim', value: form.shipping_fee, hint: 'Diteruskan ke ekspedisi — tidak dihitung sebagai pendapatan.' })}
         <div class="grid-2">
           ${moneyInputHTML({ name: 'additional_fee', label: 'Biaya tambahan', value: form.additional_fee })}
-          ${moneyInputHTML({ name: 'discount', label: 'Diskon', value: form.discount })}
+          ${moneyInputHTML({ name: 'discount', label: 'Diskon nota', value: form.discount })}
         </div>
         <label class="switch" id="addl-switch" ${Number(form.additional_fee) ? '' : 'hidden'}>
           <input type="checkbox" name="additional_fee_is_revenue" ${form.additional_fee_is_revenue ? 'checked' : ''}>
@@ -204,8 +210,18 @@ export async function render(root, params, ctx) {
           <span class="times">×</span>
           <span class="money money-sm"><span class="money-prefix">Rp</span>
             <input type="text" inputmode="numeric" data-money data-f="unit_price" value="${it.unit_price ? formatNumber(it.unit_price) : ''}" placeholder="Harga satuan" aria-label="Harga satuan"></span>
-          <span class="item-sub" data-sub>${rupiah(itemSubtotal(it.quantity, it.unit_price))}</span>
         </div>
+        <div class="item-disc">
+          <span class="item-disc-label">Diskon</span>
+          <span class="money money-sm">${it.disc_mode === 'pct'
+            ? `<input type="text" inputmode="decimal" data-f="disc_value" value="${it.disc_value ? esc(formatQuantity(it.disc_value)) : ''}" placeholder="0" aria-label="Diskon persen barang ${i + 1}"><span class="money-suffix">%</span>`
+            : `<span class="money-prefix">Rp</span><input type="text" inputmode="numeric" data-money data-f="disc_value" value="${it.disc_value ? formatNumber(it.disc_value) : ''}" placeholder="0" aria-label="Diskon Rupiah barang ${i + 1}">`}</span>
+          <select data-f="disc_mode" aria-label="Jenis diskon barang ${i + 1}">
+            <option value="rp" ${it.disc_mode !== 'pct' ? 'selected' : ''}>Rp</option>
+            <option value="pct" ${it.disc_mode === 'pct' ? 'selected' : ''}>%</option>
+          </select>
+        </div>
+        <div class="item-sub" data-sub></div>
       </div>`).join('');
   }
 
@@ -229,32 +245,57 @@ export async function render(root, params, ctx) {
     form.payment_method = g('payment_method');
     form.order_status = g('order_status') || 'Pesanan';
     form.notes = g('notes');
-    form.items = $$('.item-row', itemsEl).map((row) => ({
-      item_name: $('[data-f=item_name]', row).value.trim(),
-      quantity: parseQuantity($('[data-f=quantity]', row).value),
-      unit_price: moneyValue($('[data-f=unit_price]', row)),
-    }));
+    form.items = $$('.item-row', itemsEl).map((row) => {
+      const it = {
+        item_name: $('[data-f=item_name]', row).value.trim(),
+        quantity: parseQuantity($('[data-f=quantity]', row).value),
+        unit_price: moneyValue($('[data-f=unit_price]', row)),
+        disc_mode: $('[data-f=disc_mode]', row).value === 'pct' ? 'pct' : 'rp',
+      };
+      const dv = $('[data-f=disc_value]', row);
+      it.disc_value = it.disc_mode === 'pct' ? Math.min(100, Math.max(0, parseQuantity(dv.value))) : moneyValue(dv);
+      it.discount = itemDiscountAmount(itemGross(it.quantity, it.unit_price), it.disc_mode, it.disc_value);
+      return it;
+    });
   }
 
   /** Item kosong (tanpa nama & harga) diabaikan saat menyimpan. */
   const usedItems = () => form.items.filter((it) => it.item_name || it.unit_price);
+  /** Item yang dikirim ke server (tanpa field khusus formulir). */
+  const payloadItems = () => usedItems().map(({ item_name, quantity, unit_price, discount }) => ({
+    item_name, quantity, unit_price, discount: discount || 0,
+  }));
 
   function update() {
     readForm();
     const c = computeOrder({ ...form, items: usedItems() });
     $$('.item-row', itemsEl).forEach((row, i) => {
       const it = form.items[i];
-      $('[data-sub]', row).textContent = rupiah(itemSubtotal(it.quantity, it.unit_price));
+      const gross = itemGross(it.quantity, it.unit_price);
+      const sub = $('[data-sub]', row);
+      if (it.discount > 0) {
+        const over = it.discount > gross;
+        sub.classList.toggle('item-sub-err', over);
+        sub.innerHTML = over
+          ? 'Diskon melebihi harga barang'
+          : `<s>${rupiah(gross)}</s> −${rupiah(it.discount)} = ${rupiah(itemSubtotal(it.quantity, it.unit_price, it.discount))}`;
+      } else {
+        sub.classList.remove('item-sub-err');
+        sub.textContent = rupiah(gross);
+      }
     });
+    const itemDisc = usedItems().reduce((t, it) => t + (it.discount || 0), 0);
     $('#goods-total', root).textContent = c.goods_total ? `Total barang ${rupiah(c.goods_total)}` : '';
     $('#dp-wrap', root).hidden = form.payment_status !== 'DP';
     $('#addl-switch', root).hidden = !form.additional_fee;
     $('#bar-total', root).textContent = rupiah(c.total_amount);
     $('#calc-box', root).innerHTML = `
+      ${itemDisc ? `<div class="calc-line"><span>Harga barang sebelum diskon</span><span>${rupiah(c.goods_total + itemDisc)}</span></div>
+        <div class="calc-line"><span>Diskon per produk</span><span>−${rupiah(itemDisc)}</span></div>` : ''}
       <div class="calc-line"><span>Total harga barang</span><span>${rupiah(c.goods_total)}</span></div>
       ${form.shipping_fee ? `<div class="calc-line"><span>Ongkos kirim</span><span>${rupiah(form.shipping_fee)}</span></div>` : ''}
       ${form.additional_fee ? `<div class="calc-line"><span>Biaya tambahan</span><span>${rupiah(form.additional_fee)}</span></div>` : ''}
-      ${form.discount ? `<div class="calc-line"><span>Diskon</span><span>−${rupiah(form.discount)}</span></div>` : ''}
+      ${form.discount ? `<div class="calc-line"><span>Diskon nota</span><span>−${rupiah(form.discount)}</span></div>` : ''}
       <div class="calc-line calc-total"><span>Total tagihan</span><span>${rupiah(c.total_amount)}</span></div>
       ${form.payment_status === 'DP' ? `<div class="calc-line"><span>DP diterima</span><span>${rupiah(c.paid_amount)}</span></div>
         <div class="calc-line calc-warn"><span>Sisa pembayaran</span><span>${rupiah(c.remaining_amount)}</span></div>` : ''}
@@ -297,6 +338,17 @@ export async function render(root, params, ctx) {
     const rows = $$('.item-name', itemsEl);
     rows[rows.length - 1]?.focus();
   });
+  // Ganti jenis diskon (Rp <-> %): kosongkan nilainya agar tidak salah tafsir.
+  itemsEl.addEventListener('change', (e) => {
+    const sel = e.target.closest('[data-f=disc_mode]');
+    if (!sel) return;
+    readForm();
+    const i = Number(sel.closest('.item-row').dataset.i);
+    form.items[i].disc_value = 0;
+    form.items[i].discount = 0;
+    renderItems();
+    $(`.item-row[data-i="${i}"] [data-f=disc_value]`, itemsEl)?.focus();
+  });
   itemsEl.addEventListener('click', (e) => {
     const b = e.target.closest('[data-del]');
     if (!b) return;
@@ -315,7 +367,7 @@ export async function render(root, params, ctx) {
   formEl.addEventListener('submit', async (e) => {
     e.preventDefault();
     readForm();
-    const items = usedItems();
+    const items = payloadItems();
     const c = computeOrder({ ...form, items });
     const errors = [...c.errors];
     if (!form.transaction_date) errors.unshift('Tanggal transaksi wajib diisi.');
@@ -388,11 +440,15 @@ async function renderResult(root, id, ctx) {
 // ------------------------------------------------------------ Nota PDF berkop
 export function pdfActionsHTML() {
   return `<section class="card pdf-card">
-      <div class="pdf-head">${icon('file')}<div><b>Nota PDF berkop</b><small>Siap dicetak atau dikirim ke pelanggan</small></div></div>
+      <div class="pdf-head">${icon('file')}<div><b>Nota berkop (PDF & JPG)</b><small>Siap dicetak atau dikirim ke pelanggan</small></div></div>
       <div class="action-grid action-grid-3">
         <button class="btn btn-accent" data-pdf="share">${icon('share')} Bagikan PDF</button>
         <button class="btn btn-ghost" data-pdf="download">${icon('download')} Unduh PDF</button>
         <button class="btn btn-ghost" data-pdf="open">${icon('eye')} Lihat / Cetak</button>
+      </div>
+      <div class="action-grid pdf-jpg-row">
+        <button class="btn btn-accent" data-jpg="share">${icon('share')} Bagikan JPG</button>
+        <button class="btn btn-ghost" data-jpg="download">${icon('download')} Unduh JPG</button>
       </div>
     </section>`;
 }
@@ -415,4 +471,18 @@ export function bindPdfActions(root, order, ctx) {
       toast(e.message || 'Gagal membuat PDF.', 'error');
     }
   }, 'Membuat PDF…')));
+  root.querySelectorAll('[data-jpg]').forEach((b) => b.addEventListener('click', () => withBusy(b, async () => {
+    try {
+      if (b.dataset.jpg === 'share') {
+        const r = await shareNotaJPG(order, ctx.settings);
+        if (r === 'downloaded') toast('Perangkat tidak mendukung berbagi file — gambar nota diunduh. Kirim lewat WhatsApp dari galeri/Download.', 'info', 6000);
+        else if (r === 'shared') toast('Nota JPG dibagikan.', 'success');
+      } else {
+        await downloadNotaJPG(order, ctx.settings);
+        toast('Nota JPG diunduh.', 'success');
+      }
+    } catch (e) {
+      toast(e.message || 'Gagal membuat gambar nota.', 'error');
+    }
+  }, 'Membuat JPG…')));
 }

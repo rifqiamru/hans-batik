@@ -16,6 +16,9 @@ do $$ begin
   assert (select is_owner from public.profiles where id = '11111111-1111-1111-1111-111111111111'), 'user pertama = pemilik';
   assert not (select is_owner from public.profiles where id = '22222222-2222-2222-2222-222222222222'), 'user kedua bukan pemilik';
   assert (select setting_value ->> 'paper' from public.app_settings where setting_key = 'letterhead') = 'A5', 'pengaturan kop bawaan';
+  assert (select setting_value #>> '{bank2,account_number}' from public.app_settings where setting_key = 'payment') = '2086060224'
+    and (select setting_value #>> '{bank2,name}' from public.app_settings where setting_key = 'payment') = 'Bank Jateng',
+    'rekening Bank Jateng bawaan';
   raise notice 'OK  pemilik tunggal & pengaturan kop';
 end $$;
 
@@ -214,6 +217,32 @@ begin
         'additional_fee', 5000, 'discount', 2000, 'payment_status', 'Lunas', 'order_status', 'Selesai',
         'items', jsonb_build_array(jsonb_build_object('item_name', 'Daster batik', 'quantity', 1, 'unit_price', 100000))));
   assert (r ->> 'sales_revenue')::int = 103000, 'biaya tambahan (mis. jahit) = pendapatan';
+  -- Diskon per produk
+  r := public.save_order(jsonb_build_object('transaction_date', '2026-11-22', 'discount', 5000,
+        'shipping_fee', 20000, 'payment_status', 'Lunas', 'order_status', 'Selesai',
+        'items', jsonb_build_array(
+          jsonb_build_object('item_name', 'Kemeja batik', 'quantity', 2, 'unit_price', 175000, 'discount', 35000),
+          jsonb_build_object('item_name', 'Selendang', 'quantity', 1, 'unit_price', 175000))));
+  assert (r ->> 'goods_total')::int = 490000, 'total barang = Σ (qty × harga − diskon produk)';
+  assert (r ->> 'total_amount')::int = 505000, 'total dengan diskon produk, diskon nota & ongkir';
+  assert (r ->> 'sales_revenue')::int = 485000, 'pendapatan setelah diskon produk & diskon nota';
+  assert (r -> 'items' -> 0 ->> 'discount')::int = 35000 and (r -> 'items' -> 0 ->> 'subtotal')::int = 315000,
+    'item menyimpan diskon & subtotal bersih';
+  assert (r -> 'items' -> 1 ->> 'discount')::int = 0, 'item tanpa diskon = 0';
+  -- Ubah diskon item langsung → total order ikut terhitung ulang
+  update public.order_items set discount = 50000 where order_id = (r ->> 'id')::uuid and item_name = 'Kemeja batik';
+  assert (select goods_total from public.orders where id = (r ->> 'id')::uuid) = 475000, 'trigger menghitung ulang diskon produk';
+  begin
+    perform public.save_order(jsonb_build_object('items', jsonb_build_array(
+      jsonb_build_object('item_name', 'x', 'quantity', 1, 'unit_price', 1000, 'discount', 1001))));
+    assert false, 'diskon produk > harga harus ditolak';
+  exception when invalid_parameter_value then null;
+  end;
+  begin
+    update public.order_items set discount = 9999999 where order_id = (r ->> 'id')::uuid and item_name = 'Selendang';
+    assert false, 'diskon produk > harga (update langsung) harus ditolak';
+  exception when invalid_parameter_value then null;
+  end;
   begin
     perform public.save_order(jsonb_build_object('shipping_fee', 1000, 'discount', 5000, 'items', '[]'::jsonb));
     assert false, 'diskon > total harus ditolak';

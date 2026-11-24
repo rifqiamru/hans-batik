@@ -240,7 +240,7 @@ async function renderDetail(root, id, ctx) {
     <section class="card">
       <h3 class="card-title">Rincian barang</h3>
       ${o.items.length ? `<ul class="item-list">${o.items.map((it, i) => `
-        <li><span>${i + 1}. ${esc(it.item_name)}<small>${formatQuantity(it.quantity)} × ${rupiah(it.unit_price)}</small></span><b>${rupiah(it.subtotal)}</b></li>`).join('')}</ul>`
+        <li><span>${i + 1}. ${esc(it.item_name)}<small>${formatQuantity(it.quantity)} × ${rupiah(it.unit_price)}${Number(it.discount) > 0 ? ` · diskon −${rupiah(it.discount)}` : ''}</small></span><b>${rupiah(it.subtotal)}</b></li>`).join('')}</ul>`
         : '<p class="muted small">Tanpa rincian barang.</p>'}
       <div class="calc-box">
         <div class="calc-line"><span>Total harga barang</span><span>${rupiah(o.goods_total)}</span></div>

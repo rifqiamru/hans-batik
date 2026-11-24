@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = {
     // Kalimat pengantar rekening di bagian bawah nota. {nama} = pemilik rekening.
     note: 'Untuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n {nama} di:',
     bank: { enabled: true, name: 'BRI', account_number: '007701001069565' },
+    bank2: { enabled: true, name: 'Bank Jateng', account_number: '2086060224' },
     dana: { enabled: false, number: '' },
     qris: { enabled: false, info: '' },
   },
@@ -80,7 +81,13 @@ export function buildNotaText(order, settings = DEFAULT_SETTINGS) {
   if (items.length) {
     items.forEach((it, i) => {
       L.push(`${i + 1}. ${it.item_name}`);
-      L.push(`   ${formatQuantity(it.quantity)}x ${R(it.unit_price)} = ${R(it.subtotal)}`);
+      const disc = Number(it.discount) || 0;
+      if (disc > 0) {
+        L.push(`   ${formatQuantity(it.quantity)}x ${R(it.unit_price)} = ${R(Number(it.subtotal) + disc)}`);
+        L.push(`   🏷️ Diskon -${R(disc)} → ${R(it.subtotal)}`);
+      } else {
+        L.push(`   ${formatQuantity(it.quantity)}x ${R(it.unit_price)} = ${R(it.subtotal)}`);
+      }
     });
   } else {
     L.push(`1. ${desc || order.service_name || 'Pembelian batik'}`);
@@ -141,8 +148,15 @@ export function paymentNote(settings = DEFAULT_SETTINGS) {
 export function paymentLines(settings = DEFAULT_SETTINGS) {
   const pay = settings.payment || {};
   const out = [];
-  if (pay.bank?.enabled && pay.bank.account_number) {
-    out.push({ emoji: '🏦', label: `Bank ${pay.bank.name || ''}`.trim(), short: pay.bank.name || 'Bank', value: pay.bank.account_number });
+  for (const bank of [pay.bank, pay.bank2]) {
+    if (!bank?.enabled || !bank.account_number) continue;
+    const name = String(bank.name || '').trim();
+    out.push({
+      emoji: '🏦',
+      label: /^bank\b/i.test(name) ? name : `Bank ${name}`.trim(),
+      short: name || 'Bank',
+      value: bank.account_number,
+    });
   }
   if (pay.dana?.enabled && pay.dana.number) out.push({ emoji: '💙', label: 'Dana', short: 'DANA', value: pay.dana.number });
   if (pay.qris?.enabled && pay.qris.info) out.push({ emoji: '🔳', label: 'QRIS', short: 'QRIS', value: pay.qris.info });

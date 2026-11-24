@@ -31,10 +31,15 @@ Setelah nota disimpan (dan di halaman **Detail Transaksi**) ada kartu **Nota PDF
 | **Bagikan PDF** | Membuka menu berbagi HP → pilih WhatsApp, Telegram, email, dll. File PDF langsung terlampir. (Jika perangkat tidak mendukung, PDF diunduh.) |
 | **Unduh PDF** | Menyimpan `Nota-HB-YYMMxxx.pdf` ke folder Download. |
 | **Lihat / Cetak** | Membuka PDF di tab baru untuk dilihat atau dicetak. |
+| **Bagikan JPG** | Nota yang sama dalam bentuk **gambar JPG** (lebar 1240 px, tinggi mengikuti isi nota) → langsung terlampir di WhatsApp sebagai foto. |
+| **Unduh JPG** | Menyimpan `Nota-HB-YYMMxxx.jpg` ke galeri/Download. |
+
+Nota JPG memakai tata letak yang **sama persis** dengan PDF (`buildNotaPDF` digambar ke canvas lewat
+`www/js/lib/nota-image.js`), hanya saja dibuat satu halaman memanjang tanpa ruang kosong di bawah.
 
 Isi nota PDF: **kop** (logo, nama usaha, tagline, alamat, telepon/WA, email, website/IG, garis ganda) ·
 judul *NOTA PENJUALAN* · no. nota, tanggal, kategori penjualan, metode bayar · data pelanggan & alamat ·
-tabel barang (No, Nama Barang, Qty, Harga, Jumlah) · subtotal, ongkir, biaya tambahan, diskon, **TOTAL** ·
+tabel barang (No, Nama Barang, Qty, Harga, *Diskon* bila ada, Jumlah) · subtotal, ongkir, biaya tambahan, diskon, **TOTAL** ·
 DP & sisa bayar · stempel **LUNAS / BELUM LUNAS / DIBATALKAN** · **terbilang** · info pengiriman (kurir & resi) ·
 info pembayaran (rekening/QRIS) · catatan kaki · kolom tanda tangan *Penerima* & *Hormat kami*.
 Nota panjang otomatis lanjut ke halaman berikutnya (dengan nomor halaman).
@@ -50,8 +55,15 @@ Kec. Sokaraja, Kab. Banyumas, Jawa Tengah 53181 · WA 085712714445 / 08156508711
 IG @hansbatik.id · TikTok @hansbatik · FB Hans Batik Banyumas.
 
 **Penutup nota** (teks WhatsApp & PDF): *🙏TERIMA KASIH TELAH BERMUAMALAH dengan kami.🙏* lalu
-*Untuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n Amelia Hanum di:* dan **BRI 007701001069565**.
-Ubah di Pengaturan → Identitas usaha (kalimat penutup) dan Pengaturan → Pembayaran (rekening & kalimat pengantar; `{nama}` = pemilik rekening).
+*Untuk uang muka/pelunasan. Bisa di transfer ke nomer rekening a.n Amelia Hanum di:* lalu
+**BRI 007701001069565** dan **Bank Jateng 2086060224** (di PDF/JPG keduanya satu baris bila muat).
+Ubah di Pengaturan → Identitas usaha (kalimat penutup) dan Pengaturan → Pembayaran (rekening bank, rekening bank ke-2,
+kalimat pengantar; `{nama}` = pemilik rekening).
+
+**Diskon per produk:** di Buat Nota, setiap barang punya isian **Diskon** dengan pilihan **Rp** (nominal untuk baris itu)
+atau **%** (persen dari jumlah × harga). Jumlah per baris = jumlah × harga − diskon; diskon tersimpan dalam Rupiah di
+kolom `order_items.discount`. Isian **Diskon nota** (potongan untuk seluruh nota) tetap ada dan dihitung setelahnya.
+Diskon yang melebihi harga barang ditolak (di aplikasi dan di database).
 
 **Warna brand:** Merah `#C30000` (identitas, judul, tombol utama), Kuning `#FFCC00` (aksen, CTA),
 Putih `#FFFFFF`, Cream `#FFF9E8` (latar). Ikon aplikasi & logo kop dibuat dari `assets/logo-hans.png`
