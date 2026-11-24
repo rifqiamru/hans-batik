@@ -5,7 +5,7 @@ import {
   rupiah, formatNumber, parseAmount, parseQuantity, formatDateLong, todayJakarta,
   periodRange, startOfWeek, waNumber, cleanPhone, isValidPhone, rupiahShort, terbilang,
 } from '../www/js/lib/format.js';
-import { computeOrder, summarize, itemSubtotal, itemGross, itemDiscountAmount } from '../www/js/lib/calc.js';
+import { computeOrder, summarize, itemSubtotal, itemGross, itemDiscountAmount, unitDiscountOf } from '../www/js/lib/calc.js';
 import { buildNotaText, buildRekapText, mergeSettings, DEFAULT_SETTINGS, whatsappUrl } from '../www/js/lib/templates.js';
 import { toCSV } from '../www/js/lib/csv.js';
 import { buildNotaPDF, pdfSafe, notaFileName } from '../www/js/lib/pdf.js';
@@ -147,10 +147,15 @@ test('format nota WhatsApp Hans Batik', () => {
 test('diskon per produk: hitung, validasi, nota WA', () => {
   assert.equal(itemGross(2, 175000), 350000);
   assert.equal(itemSubtotal(2, 175000, 35000), 315000);
-  assert.equal(itemDiscountAmount(350000, 'pct', 10), 35000);
-  assert.equal(itemDiscountAmount(350000, 'pct', 150), 350000, 'persen dibatasi 100%');
-  assert.equal(itemDiscountAmount(350000, 'rp', 25000), 25000);
-  assert.equal(itemDiscountAmount(350000, 'rp', 0), 0);
+  // Diskon diisi PER SATUAN lalu dikali jumlah: 10.000 × 5 pcs, diskon 1.000 → 5.000
+  assert.equal(itemDiscountAmount(5, 10000, 'rp', 1000), 5000);
+  assert.equal(itemSubtotal(5, 10000, itemDiscountAmount(5, 10000, 'rp', 1000)), 45000);
+  assert.equal(itemDiscountAmount(2, 175000, 'pct', 10), 35000, '10% × 175.000 × 2');
+  assert.equal(itemDiscountAmount(1, 350000, 'pct', 150), 350000, 'persen dibatasi 100%');
+  assert.equal(itemDiscountAmount(1.5, 20000, 'rp', 1000), 1500, 'jumlah pecahan (meter)');
+  assert.equal(itemDiscountAmount(3, 10000, 'rp', 0), 0);
+  assert.equal(unitDiscountOf(5, 5000), 1000);
+  assert.equal(unitDiscountOf(3, 1000), null, 'tidak bulat');
   const c = computeOrder({
     items: [{ item_name: 'Kemeja', quantity: 2, unit_price: 175000, discount: 35000 },
       { item_name: 'Selendang', quantity: 1, unit_price: 175000 }],
@@ -166,9 +171,11 @@ test('diskon per produk: hitung, validasi, nota WA', () => {
   const txt = buildNotaText({
     ...ORDER_A, goods_total: 490000, total_amount: 490000,
     items: [{ item_name: 'Kemeja batik cap (L)', quantity: 2, unit_price: 175000, discount: 35000, subtotal: 315000 },
-      { item_name: 'Selendang batik', quantity: 1, unit_price: 175000, discount: 0, subtotal: 175000 }],
+      { item_name: 'Selendang batik', quantity: 1, unit_price: 175000, discount: 0, subtotal: 175000 },
+      { item_name: 'Sapu tangan batik', quantity: 1, unit_price: 20000, discount: 2000, subtotal: 18000 }],
   }, DEFAULT_SETTINGS);
-  assert.match(txt, /1\. Kemeja batik cap \(L\)\n {3}2x Rp 175\.000 = Rp 350\.000\n {3}🏷️ Diskon -Rp 35\.000 → Rp 315\.000\n2\. Selendang batik\n {3}1x Rp 175\.000 = Rp 175\.000\n/);
+  assert.match(txt, /1\. Kemeja batik cap \(L\)\n {3}2x Rp 175\.000 = Rp 350\.000\n {3}🏷️ Diskon 2x Rp 17\.500 = -Rp 35\.000 → Rp 315\.000\n2\. Selendang batik\n {3}1x Rp 175\.000 = Rp 175\.000\n/);
+  assert.match(txt, /1x Rp 20\.000 = Rp 20\.000\n {3}🏷️ Diskon -Rp 2\.000 → Rp 18\.000\n/, 'jumlah 1: tanpa rincian per satuan');
 });
 
 test('nota WA: ongkir, diskon, DP, pengiriman', () => {
@@ -264,7 +271,7 @@ test('nota PDF berkop: teks aman, nama file, isi dokumen', () => {
       { item_name: 'Selendang batik', quantity: 1, unit_price: 175000, discount: 0, subtotal: 175000 }],
   };
   const dRaw = buildNotaPDF(JsPDF, disc, DEFAULT_SETTINGS, { compress: false }).output();
-  for (const t of ['Diskon', '-35.000', '315.000', 'BRI 007701001069565   |   Bank Jateng 2086060224']) {
+  for (const t of ['Diskon/pcs', '-17.500', '315.000', 'BRI 007701001069565   |   Bank Jateng 2086060224']) {
     assert.ok(dRaw.includes(t), `PDF diskon memuat "${t}"`);
   }
   // Banyak barang → halaman bertambah, tidak error.
@@ -298,7 +305,7 @@ test('nota JPG: tata letak PDF digambar ke canvas, setinggi isi', () => {
   const canvas = doc.toCanvas(1240);
   assert.equal(canvas.width, 1240);
   assert.equal(canvas.height, Math.ceil(doc.height * 1240 / 148));
-  for (const t of ['NOTA PENJUALAN', 'HB-2611001', 'Ibu Sari', 'Batik motif 30', '-10.000', 'LUNAS', 'Hormat kami,']) {
+  for (const t of ['NOTA PENJUALAN', 'HB-2611001', 'Ibu Sari', 'Batik motif 30', '-10.000', 'Diskon/pcs', 'LUNAS', 'Hormat kami,']) {
     assert.ok(drawn.join('').includes(t), `JPG memuat "${t}"`);
   }
   const short = buildNotaPDF(CanvasDoc, ORDER_A, DEFAULT_SETTINGS, { continuous: true });

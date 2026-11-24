@@ -1,5 +1,6 @@
 // Teks nota & rekap untuk WhatsApp. Modul murni (bisa diuji di Node).
 import { rupiah, formatDateLong, formatDateFull, formatQuantity } from './format.js';
+import { unitDiscountOf } from './calc.js';
 
 export const LINE = '━━━━━━━━━━━━━━━━━━━━━━';
 
@@ -84,7 +85,9 @@ export function buildNotaText(order, settings = DEFAULT_SETTINGS) {
       const disc = Number(it.discount) || 0;
       if (disc > 0) {
         L.push(`   ${formatQuantity(it.quantity)}x ${R(it.unit_price)} = ${R(Number(it.subtotal) + disc)}`);
-        L.push(`   🏷️ Diskon -${R(disc)} → ${R(it.subtotal)}`);
+        const u = unitDiscountOf(it.quantity, disc);
+        const per = u && Number(it.quantity) !== 1 ? `${formatQuantity(it.quantity)}x ${R(u)} = ` : '';
+        L.push(`   🏷️ Diskon ${per}-${R(disc)} → ${R(it.subtotal)}`);
       } else {
         L.push(`   ${formatQuantity(it.quantity)}x ${R(it.unit_price)} = ${R(it.subtotal)}`);
       }

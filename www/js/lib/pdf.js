@@ -4,6 +4,7 @@
 // unduh, bagikan) yang baru menyentuh DOM saat dipanggil.
 import { formatDateLong, formatQuantity, formatNumber, terbilang } from './format.js';
 import { DEFAULT_SETTINGS, paymentLines, paymentNote } from './templates.js';
+import { unitDiscountOf } from './calc.js';
 
 // Warna brand Hans Batik & Resto.
 const C = {
@@ -178,15 +179,17 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
   }
 
   // ------------------------------------------------------------------ Tabel barang
-  // Kolom Diskon hanya muncul bila ada barang yang didiskon.
+  // Kolom Diskon hanya muncul bila ada barang yang didiskon. Isinya diskon PER SATUAN
+  // (Jumlah = Qty × (Harga − Diskon)); data lama yang tidak bulat → total diskon baris.
   const hasItemDisc = (order.items || []).some((it) => Number(it.discount) > 0);
+  const perUnit = (order.items || []).every((it) => unitDiscountOf(it.quantity, it.discount) !== null);
   const cols = [
     { key: 'no', label: 'No', w: fs(8), align: 'center' },
     { key: 'name', label: 'Nama Barang', w: 0, align: 'left' },
     { key: 'qty', label: 'Qty', w: fs(11), align: 'center' },
-    { key: 'price', label: 'Harga', w: fs(hasItemDisc ? 22 : 24), align: 'right' },
-    ...(hasItemDisc ? [{ key: 'disc', label: 'Diskon', w: fs(20), align: 'right' }] : []),
-    { key: 'sub', label: 'Jumlah', w: fs(hasItemDisc ? 24 : 26), align: 'right' },
+    { key: 'price', label: 'Harga', w: fs(hasItemDisc ? 21 : 24), align: 'right' },
+    ...(hasItemDisc ? [{ key: 'disc', label: perUnit ? 'Diskon/pcs' : 'Diskon', w: fs(22), align: 'right' }] : []),
+    { key: 'sub', label: 'Jumlah', w: fs(hasItemDisc ? 23 : 26), align: 'right' },
   ];
   const tableW = W - 2 * M;
   cols[1].w = tableW - cols.reduce((t, c) => t + c.w, 0);
@@ -230,7 +233,7 @@ export function buildNotaPDF(JsPDF, order, settings = DEFAULT_SETTINGS, opt = {}
     const vals = {
       no: String(i + 1), name: nameLines, qty: formatQuantity(it.quantity),
       price: formatNumber(it.unit_price),
-      disc: Number(it.discount) > 0 ? '-' + formatNumber(it.discount) : '-',
+      disc: Number(it.discount) > 0 ? '-' + formatNumber(perUnit ? unitDiscountOf(it.quantity, it.discount) : it.discount) : '-',
       sub: formatNumber(it.subtotal ?? (Math.round(it.quantity * it.unit_price) - (Number(it.discount) || 0))),
     };
     for (const c of cols) {

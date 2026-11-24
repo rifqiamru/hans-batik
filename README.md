@@ -60,9 +60,10 @@ IG @hansbatik.id · TikTok @hansbatik · FB Hans Batik Banyumas.
 Ubah di Pengaturan → Identitas usaha (kalimat penutup) dan Pengaturan → Pembayaran (rekening bank, rekening bank ke-2,
 kalimat pengantar; `{nama}` = pemilik rekening).
 
-**Diskon per produk:** di Buat Nota, setiap barang punya isian **Diskon** dengan pilihan **Rp** (nominal untuk baris itu)
-atau **%** (persen dari jumlah × harga). Jumlah per baris = jumlah × harga − diskon; diskon tersimpan dalam Rupiah di
-kolom `order_items.discount`. Isian **Diskon nota** (potongan untuk seluruh nota) tetap ada dan dihitung setelahnya.
+**Diskon per produk (per satuan):** di Buat Nota, setiap barang punya isian **Diskon/pcs** dengan pilihan **Rp**
+atau **%** (persen dari harga satuan). Diskon otomatis **dikali jumlah**: harga 10.000 × 5 pcs, diskon 1.000 →
+diskon 5.000, jumlah 45.000. Total diskon baris tersimpan dalam Rupiah di kolom `order_items.discount`;
+nota PDF/JPG menampilkan kolom *Diskon/pcs*. Isian **Diskon nota** (potongan untuk seluruh nota) tetap ada dan dihitung setelahnya.
 Diskon yang melebihi harga barang ditolak (di aplikasi dan di database).
 
 **Warna brand:** Merah `#C30000` (identitas, judul, tombol utama), Kuning `#FFCC00` (aksen, CTA),

@@ -350,10 +350,17 @@ try {
   await page.fill('.item-row >> nth=1 >> [data-f=unit_price]', '475000');
   await page.fill('.item-row >> nth=1 >> [data-f=disc_value]', '25000');
   assert.equal(await page.inputValue('.item-row >> nth=1 >> [data-f=disc_value]'), '25.000', 'format ribuan diskon Rp');
-  assert.match(await text('.item-row >> nth=0 >> [data-sub]'), /Rp350\.000\s*−Rp35\.000 = Rp315\.000/);
+  // Diskon per satuan × jumlah: 10.000 × 5 pcs, diskon 1.000 → 5.000
+  await page.click('#btn-add-item');
+  await page.fill('.item-row >> nth=2 >> [data-f=item_name]', 'Sapu tangan batik');
+  await page.fill('.item-row >> nth=2 >> [data-f=quantity]', '5');
+  await page.fill('.item-row >> nth=2 >> [data-f=unit_price]', '10000');
+  await page.fill('.item-row >> nth=2 >> [data-f=disc_value]', '1000');
+  assert.match(await text('.item-row >> nth=0 >> [data-sub]'), /Rp350\.000\s*−Rp35\.000\s*\(2 × Rp17\.500\) = Rp315\.000/);
   assert.match(await text('.item-row >> nth=1 >> [data-sub]'), /Rp475\.000\s*−Rp25\.000 = Rp450\.000/);
-  assert.match(await text('#calc-box'), /Diskon per produk\s*−Rp60\.000/);
-  assert.equal(await text('#bar-total'), 'Rp765.000');
+  assert.match(await text('.item-row >> nth=2 >> [data-sub]'), /Rp50\.000\s*−Rp5\.000\s*\(5 × Rp1\.000\) = Rp45\.000/);
+  assert.match(await text('#calc-box'), /Diskon per produk\s*−Rp65\.000/);
+  assert.equal(await text('#bar-total'), 'Rp810.000');
   await page.locator('#items').screenshot({ path: join(shots, '15a-diskon-per-produk.png') });
   // Diskon melebihi harga ditolak
   await page.fill('.item-row >> nth=1 >> [data-f=disc_value]', '500000');
@@ -364,8 +371,9 @@ try {
   await page.click('#btn-save');
   await page.waitForSelector('.success-head');
   const notaC = await text('.wa-preview');
-  assert.ok(notaC.includes('   2x Rp 175.000 = Rp 350.000\n   🏷️ Diskon -Rp 35.000 → Rp 315.000'), 'diskon produk di nota WA');
-  assert.ok(notaC.includes('💰 *TOTAL: Rp 765.000*'));
+  assert.ok(notaC.includes('   2x Rp 175.000 = Rp 350.000\n   🏷️ Diskon 2x Rp 17.500 = -Rp 35.000 → Rp 315.000'), 'diskon produk di nota WA');
+  assert.ok(notaC.includes('   5x Rp 10.000 = Rp 50.000\n   🏷️ Diskon 5x Rp 1.000 = -Rp 5.000 → Rp 45.000'), 'diskon per pcs × jumlah');
+  assert.ok(notaC.includes('💰 *TOTAL: Rp 810.000*'));
   const savedC = await page.evaluate(() => window.__db.items.filter((i) => i.item_name === 'Kemeja batik cap (L)').map((i) => [i.discount, i.subtotal]));
   assert.deepEqual(savedC.at(-1), [35000, 315000], 'diskon produk tersimpan');
   const [jpgC] = await Promise.all([page.waitForEvent('download'), page.click('[data-jpg=download]')]);
@@ -374,8 +382,9 @@ try {
   const idC = await page.evaluate(() => window.__db.orders.at(-1).id);
   await go(`#/nota/ubah/${idC}`);
   await page.waitForSelector('#nota-form');
-  assert.equal(await page.inputValue('.item-row >> nth=0 >> [data-f=disc_value]'), '35.000');
-  assert.equal(await text('#bar-total'), 'Rp765.000');
+  assert.equal(await page.inputValue('.item-row >> nth=0 >> [data-f=disc_value]'), '17.500', 'diskon per satuan saat diubah');
+  assert.equal(await page.inputValue('.item-row >> nth=2 >> [data-f=disc_value]'), '1.000');
+  assert.equal(await text('#bar-total'), 'Rp810.000');
   await go('#/');
   ok('diskon per produk: persen & Rupiah, validasi, nota WA, JPG, ubah transaksi');
 

@@ -8,14 +8,14 @@ import {
 import {
   rupiah, todayJakarta, formatNumber, parseQuantity, formatQuantity, cleanPhone, isValidPhone,
 } from '../lib/format.js';
-import { computeOrder, itemSubtotal, itemGross, itemDiscountAmount, PAYMENT_STATUSES, ORDER_STATUSES, PAYMENT_METHODS } from '../lib/calc.js';
+import { computeOrder, itemSubtotal, itemGross, itemDiscountAmount, unitDiscountOf, PAYMENT_STATUSES, ORDER_STATUSES, PAYMENT_METHODS } from '../lib/calc.js';
 import { buildNotaText } from '../lib/templates.js';
 import { downloadNotaPDF, shareNotaPDF, openNotaPDF } from '../lib/pdf.js';
 import { downloadNotaJPG, shareNotaJPG } from '../lib/nota-image.js';
 import { draftKey, loadDraft, saveDraft, clearDraft, hasMeaningfulContent } from '../lib/drafts.js';
 
-// discount = diskon per produk (Rupiah, untuk seluruh baris). disc_mode & disc_value
-// hanya untuk formulir: diskon bisa diisi nominal Rupiah ('rp') atau persen ('pct').
+// discount = total diskon baris (Rupiah) = diskon per satuan × jumlah. disc_mode & disc_value
+// hanya untuk formulir: diskon PER SATUAN diisi nominal Rupiah ('rp') atau persen dari harga ('pct').
 const EMPTY_ITEM = () => ({ item_name: '', quantity: 1, unit_price: 0, discount: 0, disc_mode: 'rp', disc_value: 0 });
 
 function emptyForm() {
@@ -41,7 +41,8 @@ function formFromOrder(o) {
     tracking_number: o.tracking_number || '',
     items: (o.items || []).map((i) => ({
       item_name: i.item_name, quantity: Number(i.quantity), unit_price: i.unit_price,
-      discount: Number(i.discount) || 0, disc_mode: 'rp', disc_value: Number(i.discount) || 0,
+      discount: Number(i.discount) || 0, disc_mode: 'rp',
+      disc_value: unitDiscountOf(i.quantity, i.discount) ?? Math.round((Number(i.discount) || 0) / (Number(i.quantity) || 1)),
     })),
     shipping_fee: o.shipping_fee, additional_fee: o.additional_fee,
     additional_fee_is_revenue: o.additional_fee_is_revenue !== false, discount: o.discount,
@@ -212,10 +213,10 @@ export async function render(root, params, ctx) {
             <input type="text" inputmode="numeric" data-money data-f="unit_price" value="${it.unit_price ? formatNumber(it.unit_price) : ''}" placeholder="Harga satuan" aria-label="Harga satuan"></span>
         </div>
         <div class="item-disc">
-          <span class="item-disc-label">Diskon</span>
+          <span class="item-disc-label">Diskon<small>/pcs</small></span>
           <span class="money money-sm">${it.disc_mode === 'pct'
-            ? `<input type="text" inputmode="decimal" data-f="disc_value" value="${it.disc_value ? esc(formatQuantity(it.disc_value)) : ''}" placeholder="0" aria-label="Diskon persen barang ${i + 1}"><span class="money-suffix">%</span>`
-            : `<span class="money-prefix">Rp</span><input type="text" inputmode="numeric" data-money data-f="disc_value" value="${it.disc_value ? formatNumber(it.disc_value) : ''}" placeholder="0" aria-label="Diskon Rupiah barang ${i + 1}">`}</span>
+            ? `<input type="text" inputmode="decimal" data-f="disc_value" value="${it.disc_value ? esc(formatQuantity(it.disc_value)) : ''}" placeholder="0" aria-label="Diskon persen per satuan barang ${i + 1}"><span class="money-suffix">%</span>`
+            : `<span class="money-prefix">Rp</span><input type="text" inputmode="numeric" data-money data-f="disc_value" value="${it.disc_value ? formatNumber(it.disc_value) : ''}" placeholder="0" aria-label="Diskon Rupiah per satuan barang ${i + 1}">`}</span>
           <select data-f="disc_mode" aria-label="Jenis diskon barang ${i + 1}">
             <option value="rp" ${it.disc_mode !== 'pct' ? 'selected' : ''}>Rp</option>
             <option value="pct" ${it.disc_mode === 'pct' ? 'selected' : ''}>%</option>
@@ -254,7 +255,7 @@ export async function render(root, params, ctx) {
       };
       const dv = $('[data-f=disc_value]', row);
       it.disc_value = it.disc_mode === 'pct' ? Math.min(100, Math.max(0, parseQuantity(dv.value))) : moneyValue(dv);
-      it.discount = itemDiscountAmount(itemGross(it.quantity, it.unit_price), it.disc_mode, it.disc_value);
+      it.discount = itemDiscountAmount(it.quantity, it.unit_price, it.disc_mode, it.disc_value);
       return it;
     });
   }
@@ -265,6 +266,12 @@ export async function render(root, params, ctx) {
   const payloadItems = () => usedItems().map(({ item_name, quantity, unit_price, discount }) => ({
     item_name, quantity, unit_price, discount: discount || 0,
   }));
+
+  /** " (5 × Rp1.000)" — rincian diskon per satuan bila jumlah > 1. */
+  function discDetail(it) {
+    const u = unitDiscountOf(it.quantity, it.discount);
+    return u && Number(it.quantity) !== 1 ? ` <small>(${formatQuantity(it.quantity)} × ${rupiah(u)})</small>` : '';
+  }
 
   function update() {
     readForm();
@@ -278,7 +285,7 @@ export async function render(root, params, ctx) {
         sub.classList.toggle('item-sub-err', over);
         sub.innerHTML = over
           ? 'Diskon melebihi harga barang'
-          : `<s>${rupiah(gross)}</s> −${rupiah(it.discount)} = ${rupiah(itemSubtotal(it.quantity, it.unit_price, it.discount))}`;
+          : `<s>${rupiah(gross)}</s> −${rupiah(it.discount)}${discDetail(it)} = ${rupiah(itemSubtotal(it.quantity, it.unit_price, it.discount))}`;
       } else {
         sub.classList.remove('item-sub-err');
         sub.textContent = rupiah(gross);

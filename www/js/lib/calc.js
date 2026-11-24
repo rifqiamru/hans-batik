@@ -18,14 +18,36 @@ export function itemSubtotal(quantity, unitPrice, discount = 0) {
 }
 
 /**
- * Diskon per produk dalam Rupiah. mode 'pct' = persen dari harga kotor baris
- * (dibulatkan ke Rupiah), selain itu nominal Rupiah.
+ * Diskon PER SATUAN (Rupiah) dari isian formulir.
+ * mode 'pct' = persen dari harga satuan (dibulatkan ke Rupiah), selain itu nominal Rupiah per satuan.
  */
-export function itemDiscountAmount(gross, mode, value) {
+export function unitDiscountAmount(unitPrice, mode, value) {
   const v = Number(value) || 0;
   if (v <= 0) return 0;
-  if (mode === 'pct') return Math.round((Number(gross) || 0) * Math.min(v, 100) / 100);
+  if (mode === 'pct') return Math.round((Number(unitPrice) || 0) * Math.min(v, 100) / 100);
   return Math.round(v);
+}
+
+/**
+ * Total diskon baris (yang disimpan di order_items.discount)
+ * = diskon per satuan × jumlah, dibulatkan ke Rupiah.
+ * Contoh: harga 10.000 × 5 pcs, diskon 1.000/pcs → 5.000.
+ */
+export function itemDiscountAmount(quantity, unitPrice, mode, value) {
+  const q = Math.round((Number(quantity) || 0) * 100) / 100;
+  return Math.round(q * unitDiscountAmount(unitPrice, mode, value));
+}
+
+/**
+ * Diskon per satuan dari total diskon baris (untuk ditampilkan di nota).
+ * null bila tidak bulat (mis. data lama yang diskonnya bukan kelipatan jumlah).
+ */
+export function unitDiscountOf(quantity, discount) {
+  const q = Number(quantity) || 0;
+  const d = Number(discount) || 0;
+  if (q <= 0 || d <= 0) return 0;
+  const u = d / q;
+  return Math.abs(u - Math.round(u)) < 1e-6 ? Math.round(u) : null;
 }
 
 /**
